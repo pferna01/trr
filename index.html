@@ -3,521 +3,528 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Total Real Returns</title>
+<title>Pablo's Finance Project</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
-    --bg: #0a0a0f;
-    --surface: #11111a;
-    --border: #1e1e2e;
-    --accent: #e8ff47;
-    --accent2: #47c6ff;
-    --text: #e8e8f0;
-    --muted: #5a5a7a;
-    --green: #3dffa0;
-    --red: #ff5c5c;
+    --bg: #0a0a0f; --surface: #11111a; --border: #1e1e2e;
+    --accent: #e8ff47; --accent2: #47c6ff; --text: #e8e8f0;
+    --muted: #5a5a7a; --green: #3dffa0; --red: #ff5c5c; --purple: #c084fc;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
   body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.4;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.4;
   }
-  header {
-    padding: 48px 48px 0;
-    display: flex;
-    align-items: flex-end;
-    gap: 16px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 24px;
-  }
-  .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 48px;
-    letter-spacing: 2px;
-    line-height: 1;
-    color: var(--accent);
-    text-shadow: 0 0 40px rgba(232,255,71,0.3);
-  }
+  header { padding: 48px 48px 24px; display: flex; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--border); }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; color: var(--accent); text-shadow: 0 0 40px rgba(232,255,71,0.3); }
   .logo span { color: var(--text); opacity: 0.4; }
-  .tagline {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding-bottom: 6px;
-  }
-  main {
-    padding: 40px 48px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  .controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
-    gap: 16px;
-    margin-bottom: 40px;
-    align-items: end;
-  }
+  .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding-bottom: 6px; }
+  main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto auto; gap: 16px; margin-bottom: 32px; align-items: end; }
   .field { display: flex; flex-direction: column; gap: 8px; }
-  label {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-  }
-  input, select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: 'DM Mono', monospace;
-    font-size: 16px;
-    padding: 14px 18px;
-    border-radius: 4px;
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    width: 100%;
-  }
-  input:focus, select:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 2px rgba(232,255,71,0.1);
-  }
+  label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  input { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 16px; padding: 14px 18px; border-radius: 4px; outline: none; transition: border-color 0.2s; width: 100%; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,255,71,0.1); }
   input::placeholder { color: var(--muted); }
-  select option { background: #1a1a2e; }
-  .btn {
-    background: var(--accent);
-    color: #0a0a0f;
-    border: none;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 20px;
-    letter-spacing: 1.5px;
-    padding: 14px 36px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: transform 0.1s, box-shadow 0.2s;
-    white-space: nowrap;
-  }
-  .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 24px rgba(232,255,71,0.35);
-  }
+  .btn { background: var(--accent); color: #0a0a0f; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 36px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(232,255,71,0.35); }
   .btn:active { transform: translateY(0); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-    opacity: 0;
-    transition: opacity 0.4s;
-  }
+  .btn-trend { background: transparent; color: var(--purple); border: 1px solid var(--purple); font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 28px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s, background 0.2s; white-space: nowrap; }
+  .btn-trend:hover { background: rgba(192,132,252,0.1); transform: translateY(-1px); box-shadow: 0 4px 24px rgba(192,132,252,0.25); }
+  .btn-trend:active { transform: translateY(0); }
+  .btn-trend:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .best-result { display: none; background: rgba(192,132,252,0.07); border: 1px solid rgba(192,132,252,0.3); border-radius: 6px; padding: 16px 24px; margin-bottom: 24px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--purple); line-height: 1.8; }
+  .best-result.visible { display: block; }
+  .best-result strong { color: var(--text); }
+  .btr-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; margin-bottom: 6px; }
+  .stats-section-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; display: none; }
+  .stats-section-label .t1 { color: var(--green); }
+  .stats-section-label .t2 { color: #e8ff47; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 12px; opacity: 0; transition: opacity 0.4s; }
   .stats.visible { opacity: 1; }
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 24px 20px;
-    position: relative;
-    overflow: hidden;
-  }
-  .stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--accent);
-  }
+  .stats2 { display: none; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stats2.visible { display: grid; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 24px 20px; position: relative; overflow: hidden; }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
   .stat-card.blue::before { background: var(--accent2); }
   .stat-card.green::before { background: var(--green); }
-  .stat-card.red::before { background: var(--red); }
-  .stat-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 10px;
-  }
-  .stat-value {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 42px;
-    line-height: 1;
-    color: var(--accent);
-  }
+  .stat-card.yellow::before { background: #e8ff47; }
+  .stat-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 1; color: var(--accent); }
   .stat-card.blue .stat-value { color: var(--accent2); }
-  .stat-card.green .stat-value { color: var(--green); }
-  .stat-sub {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 6px;
-  }
-  .chart-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 32px;
-    position: relative;
-    min-height: 420px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .chart-wrap canvas { display: block; }
-  .placeholder { text-align: center; color: var(--muted); }
-  .placeholder .big {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 64px;
-    opacity: 0.15;
-    letter-spacing: 3px;
-    display: block;
-  }
-  .placeholder p {
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    margin-top: 8px;
-    letter-spacing: 0.5px;
-  }
+  .stat-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 32px; position: relative; height: 630px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  .chart-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
   .loader { display: none; flex-direction: column; align-items: center; gap: 16px; }
   .loader.active { display: flex; }
-  .spinner {
-    width: 40px; height: 40px;
-    border: 2px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-  }
+  .spinner { width: 40px; height: 40px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  .spinner.purple { border-top-color: var(--purple); }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .loader-text {
-    font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: 1px;
-  }
-  .error-msg {
-    background: rgba(255, 92, 92, 0.08);
-    border: 1px solid rgba(255,92,92,0.25);
-    border-radius: 4px;
-    padding: 14px 20px;
-    font-family: 'DM Mono', monospace;
-    font-size: 13px;
-    color: var(--red);
-    margin-bottom: 24px;
-    display: none;
-  }
+  .loader-text { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+  .error-msg { background: rgba(255,92,92,0.08); border: 1px solid rgba(255,92,92,0.25); border-radius: 4px; padding: 14px 20px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--red); margin-bottom: 24px; display: none; }
   .error-msg.visible { display: block; }
-  .r2-note {
-    margin-top: 16px;
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.7;
-    padding: 16px 20px;
-    background: rgba(255,255,255,0.02);
-    border-left: 2px solid var(--border);
-    display: none;
-  }
+  .r2-note { margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 16px 20px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--border); display: none; }
   .r2-note.visible { display: block; }
-  @media (max-width: 768px) {
-    header { padding: 24px 20px; }
-    main { padding: 24px 20px; }
-    .controls { grid-template-columns: 1fr 1fr; }
-    .btn { grid-column: span 2; }
-    .stats { grid-template-columns: 1fr 1fr; }
-    .logo { font-size: 36px; }
+  @media (max-width: 900px) {
+    header { padding: 24px 20px; } main { padding: 24px 20px; }
+    .controls { grid-template-columns: 1fr 1fr; } .stats, .stats2 { grid-template-columns: 1fr 1fr; } .logo { font-size: 36px; }
   }
 </style>
 </head>
 <body>
 <header>
-  <div>
-    <div class="logo">Total<span>Real</span>Returns</div>
-  </div>
-  <div class="tagline">Dividends reinvested · Trend-adjusted · R² scored</div>
+  <div><div class="logo">Pablo's<span>Finance</span>Project</div></div>
+  <div class="tagline">Dividends reinvested &middot; Trend-adjusted &middot; R&sup2; scored</div>
 </header>
 <main>
   <div class="controls">
-    <div class="field">
-      <label>Ticker Symbol</label>
-      <input type="text" id="ticker" placeholder="AAPL, SPY, MSFT…" maxlength="10">
-    </div>
-    <div class="field">
-      <label>Start Date</label>
-      <input type="date" id="startDate">
-    </div>
-    <div class="field">
-      <label>End Date</label>
-      <input type="date" id="endDate">
-    </div>
-    <div class="field">
-      <label>&nbsp;</label>
-      <button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button>
-    </div>
+    <div class="field"><label>Ticker 1</label><input type="text" id="ticker" placeholder="AAPL, SPY..." maxlength="10"></div>
+    <div class="field"><label>Ticker 2 (optional)</label><input type="text" id="ticker2" placeholder="Compare to..." maxlength="10"></div>
+    <div class="field"><label>Start Date</label><input type="date" id="startDate"></div>
+    <div class="field"><label>End Date</label><input type="date" id="endDate"></div>
+    <div class="field"><label>&nbsp;</label><button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button></div>
+    <div class="field"><label>&nbsp;</label><button class="btn-trend" id="trendBtn" onclick="findBestTrend()">BEST TREND</button></div>
   </div>
   <div class="error-msg" id="errorMsg"></div>
-  <div class="stats" id="statsRow">
-    <div class="stat-card">
-      <div class="stat-label">Annual Return (CAGR)</div>
-      <div class="stat-value" id="statCagr">—</div>
-      <div class="stat-sub">Dividends reinvested</div>
-    </div>
-    <div class="stat-card blue">
-      <div class="stat-label">R² (Trend Fit)</div>
-      <div class="stat-value" id="statR2">—</div>
-      <div class="stat-sub">Log-linear regression</div>
-    </div>
-    <div class="stat-card green">
-      <div class="stat-label">Total Return</div>
-      <div class="stat-value" id="statTotal">—</div>
-      <div class="stat-sub" id="statPeriod">Over period</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">$10,000 grew to</div>
-      <div class="stat-value" id="statFinal">—</div>
-      <div class="stat-sub">Starting investment</div>
-    </div>
+  <div class="best-result" id="bestResult">
+    <div class="btr-label">&#11041; Best Trend Window Found</div>
+    <span id="btrText"></span>
   </div>
-  <div class="chart-wrap" id="chartWrap">
-    <div class="placeholder" id="placeholder">
-      <span class="big">RETURNS</span>
-      <p>Enter a ticker and date range above, then hit ANALYZE</p>
-    </div>
-    <div class="loader" id="loader">
-      <div class="spinner"></div>
-      <div class="loader-text">Fetching price history…</div>
-    </div>
+  <div class="stats-section-label" id="label1">&#8212; <span class="t1" id="labelTicker1"></span></div>
+  <div class="stats" id="statsRow">
+    <div class="stat-card green"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
+    <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
+    <div class="stat-card green"><div class="stat-label">Total Return</div><div class="stat-value" id="statTotal">&#8212;</div><div class="stat-sub" id="statPeriod">Over period</div></div>
+    <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+  </div>
+  <div class="stats-section-label" id="label2">&#8212; <span class="t2" id="labelTicker2"></span></div>
+  <div class="stats2" id="statsRow2">
+    <div class="stat-card yellow"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr2" style="color:#e8ff47">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
+    <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2_2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
+    <div class="stat-card yellow"><div class="stat-label">Total Return</div><div class="stat-value" id="statTotal2" style="color:#e8ff47">&#8212;</div><div class="stat-sub" id="statPeriod2">Over period</div></div>
+    <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal2">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+  </div>
+  <div class="chart-wrap">
+    <div class="loader" id="loader"><div class="spinner" id="spinnerEl"></div><div class="loader-text" id="loaderText">Fetching data...</div></div>
     <canvas id="myChart" style="display:none;"></canvas>
   </div>
   <div class="r2-note" id="r2note">
-    <strong style="color:var(--text)">What is R²?</strong> — R² measures how closely the stock's growth followed a smooth exponential trend.
-    A score of <strong style="color:var(--green)">1.00</strong> means perfectly consistent compounding every year.
-    A score of <strong style="color:var(--red)">0.50</strong> means high volatility — lots of deviation from the trend line.
-    The <strong style="color:var(--accent2)">dashed line</strong> on the chart shows the fitted exponential trend.
+    <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
+    <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
+    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
   </div>
 </main>
 <script>
 let myChart = null;
+let cachedMonthlyData = null;
+let cachedTicker = null;
+
+const AV_KEYS = [
+  'T1CDEDP45N03FTF1','NSLYQQRAXYAHXF0O','MJEHZNFMZTVCYBOV','7MDRE86X2TKMIJ84',
+  'JVUOF0Y0OAYU9H35','E4FDE6G689NMTMFX','FWB2227UETNQUUSO','W8XA6VAX4LVCHGPY'
+];
+const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
+
+// Set default dates
 const today = new Date();
+const yesterday = new Date(today);
+yesterday.setDate(today.getDate() - 1);
 const tenYearsAgo = new Date(today);
 tenYearsAgo.setFullYear(today.getFullYear() - 10);
-document.getElementById('endDate').value = today.toISOString().split('T')[0];
+document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 document.getElementById('startDate').value = tenYearsAgo.toISOString().split('T')[0];
-function showError(msg) {
-  const el = document.getElementById('errorMsg');
-  el.textContent = msg;
-  el.classList.add('visible');
-}
+
+function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('visible'); }
 function clearError() { document.getElementById('errorMsg').classList.remove('visible'); }
-function setLoading(on) {
+function setLoading(on, purple=false) {
   document.getElementById('loader').classList.toggle('active', on);
-  document.getElementById('placeholder').style.display = on ? 'none' : '';
   document.getElementById('fetchBtn').disabled = on;
+  document.getElementById('trendBtn').disabled = on;
+  document.getElementById('spinnerEl').classList.toggle('purple', purple);
 }
+
+async function fetchRawData(ticker, startTs, endTs, interval) {
+  const s = new Date(startTs * 1000);
+  const e = new Date(endTs * 1000);
+  const fmt = d => d.toISOString().split('T')[0];
+  const fmtCompact = d => fmt(d).replace(/-/g,'');
+  const filterEntries = entries => entries.filter(d => d.date >= s && d.date <= e);
+
+  // Build AV params
+  let avFunction, seriesKey, outputSize = '';
+  if (interval === '1mo') { avFunction = 'TIME_SERIES_MONTHLY_ADJUSTED'; seriesKey = 'Monthly Adjusted Time Series'; }
+  else if (interval === '1d') { avFunction = 'TIME_SERIES_DAILY_ADJUSTED'; seriesKey = 'Time Series (Daily)'; outputSize = '&outputsize=full'; }
+  else { avFunction = 'TIME_SERIES_WEEKLY_ADJUSTED'; seriesKey = 'Weekly Adjusted Time Series'; }
+
+  const yahooInterval = interval === '1mo' ? '1mo' : interval === '1d' ? '1d' : '1wk';
+  // Yahoo adjclose already accounts for splits. We fetch raw close + dividends
+  // separately so we can compute true total return with dividend reinvestment.
+  const yahooBase = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
+  const worker = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
+
+  // parseYahooTotalReturn: true total return via raw close + manual dividend reinvestment
+  // Yahoo adjclose only adjusts for splits, not true reinvested dividends.
+  // We simulate buying fractional shares with each dividend at that day's price.
+  const parseYahooTotalReturn = (json) => {
+    if (!json?.chart?.result?.[0]) return null;
+    const result = json.chart.result[0];
+    const timestamps = result.timestamp;
+    const rawClose = result.indicators?.quote?.[0]?.close;
+    const adjClose = result.indicators?.adjclose?.[0]?.adjclose;
+    if (!timestamps || !rawClose || timestamps.length < 2) return null;
+
+    // Build split-adjustment factor for each point: adjFactor = adj/raw
+    // This lets us convert raw prices to split-adjusted prices at any point
+    const pts = timestamps.map((ts, i) => ({
+      date: new Date(ts * 1000),
+      ts: ts * 1000,
+      raw: rawClose[i],
+      adj: adjClose ? adjClose[i] : rawClose[i]
+    })).filter(d => d.raw != null && !isNaN(d.raw) && d.raw > 0)
+      .sort((a, b) => a.ts - b.ts);
+
+    if (pts.length < 2) return null;
+
+    // Get dividend events
+    const divEvents = result.events?.dividends || {};
+    const dividends = Object.values(divEvents)
+      .map(d => ({ ts: d.date * 1000, amount: d.amount }))
+      .sort((a, b) => a.ts - b.ts);
+
+    // For each data point, find the split-adjustment factor
+    // adjFactor at point i = adj[i] / raw[i]
+    // Use split-adjusted price for reinvestment calculations
+
+    // Simulate total return:
+    // Start with 1 share. At each dividend, buy more shares.
+    // Value at time t = shares * splitAdjPrice[t]
+    let shares = 1.0;
+    const totalReturn = pts.map((pt, i) => {
+      const prevTs = i > 0 ? pts[i-1].ts : 0;
+      // Dividends paid in this period
+      const divsNow = dividends.filter(d => d.ts > prevTs && d.ts <= pt.ts);
+      for (const div of divsNow) {
+        // Split-adjusted price at this point
+        const splitAdjFactor = pt.adj / pt.raw;
+        const splitAdjPrice = pt.raw * splitAdjFactor;
+        if (splitAdjPrice > 0) {
+          // Reinvest: fractional shares bought = (shares * divAmount) / splitAdjPrice
+          shares += (shares * div.amount) / splitAdjPrice;
+        }
+      }
+      return {
+        date: pt.date,
+        price: pt.adj * shares  // total portfolio value in split-adjusted terms
+      };
+    });
+
+    return totalReturn;
+  };
+
+  // 1. Yahoo Finance via Cloudflare Worker — deep history + true dividend reinvestment
+  try {
+    const yahooUrl = `${yahooBase}?period1=${Math.max(0,startTs)}&period2=${endTs}&interval=${yahooInterval}&events=div&includeAdjustedClose=true`;
+    const resp = await fetch(worker + encodeURIComponent(yahooUrl), { signal: AbortSignal.timeout(15000) });
+    if (resp.ok) {
+      const json = await resp.json();
+      const entries = parseYahooTotalReturn(json);
+      if (entries) {
+        const filtered = filterEntries(entries);
+        if (filtered.length >= 2) return filtered;
+      }
+    }
+  } catch(e) {}
+
+  // 2. Twelve Data
+  try {
+    const tdInterval = interval === '1d' ? '1day' : interval === '1wk' ? '1week' : '1month';
+    const url = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=${tdInterval}&start_date=${fmt(s)}&end_date=${fmt(e)}&outputsize=5000&dp=4&apikey=${TD_KEY}`;
+    const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (resp.ok) {
+      const result = await resp.json();
+      if (result.status === 'error' && result.message && result.message.toLowerCase().includes('not found'))
+        throw new Error(`Ticker "${ticker}" not found.`);
+      if (result.values && result.values.length >= 2) {
+        const entries = result.values.map(v => ({ date: new Date(v.datetime), price: parseFloat(v.close) }))
+          .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
+        const filtered = filterEntries(entries);
+        if (filtered.length >= 2) return filtered;
+      }
+    }
+  } catch(e) { if (e.message && e.message.includes('not found')) throw e; }
+
+  // 3. Alpha Vantage keys
+  for (const key of AV_KEYS) {
+    try {
+      const url = `https://www.alphavantage.co/query?function=${avFunction}&symbol=${ticker}${outputSize}&apikey=${key}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!resp.ok) continue;
+      const result = await resp.json();
+      if (result['Error Message']) throw new Error(`Ticker "${ticker}" not found.`);
+      if (result['Note'] || result['Information']) continue;
+      if (!result[seriesKey]) continue;
+      const entries = Object.entries(result[seriesKey])
+        .map(([ds, vals]) => ({ date: new Date(ds), price: parseFloat(vals['5. adjusted close'] || vals['4. close']) }))
+        .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
+      const filtered = filterEntries(entries);
+      if (filtered.length >= 2) return filtered;
+    } catch(e) { if (e.message && e.message.includes('not found')) throw e; continue; }
+  }
+
+  throw new Error(`Could not fetch data for "${ticker}". Please try again.`);
+}
+
 async function fetchData() {
   clearError();
+  document.getElementById('bestResult').classList.remove('visible');
   const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  const ticker2 = document.getElementById('ticker2').value.trim().toUpperCase();
   const start = document.getElementById('startDate').value;
   const end = document.getElementById('endDate').value;
   if (!ticker) return showError('Please enter a ticker symbol.');
   if (!start || !end) return showError('Please select a start and end date.');
   if (new Date(start) >= new Date(end)) return showError('Start date must be before end date.');
+
   document.getElementById('myChart').style.display = 'none';
-  document.getElementById('placeholder').style.display = 'none';
   document.getElementById('statsRow').classList.remove('visible');
+  document.getElementById('statsRow2').classList.remove('visible');
+  document.getElementById('label1').style.display = 'none';
+  document.getElementById('label2').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
-  setLoading(true);
+  setLoading(true, false);
+
+  const days = (new Date(end) - new Date(start)) / 86400000;
+  const weeks = days / 7;
+  const interval = days <= 1500 ? '1d' : weeks <= 1500 ? '1wk' : '1mo';
+  document.getElementById('loaderText').textContent = `Fetching ${interval==='1d'?'daily':interval==='1wk'?'weekly':'monthly'} data...`;
+
   try {
     const startTs = Math.floor(new Date(start).getTime() / 1000);
     const endTs = Math.floor(new Date(end).getTime() / 1000) + 86400;
-    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTs}&period2=${endTs}&interval=1mo&events=div&includeAdjustedClose=true`;
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`;
-    const resp = await fetch(proxyUrl);
-    if (!resp.ok) throw new Error('Network error fetching data.');
-    const wrapper = await resp.json();
-    const raw = JSON.parse(wrapper.contents);
-    if (raw.chart.error) throw new Error(raw.chart.error.description || 'Yahoo Finance error.');
-    const result = raw.chart.result[0];
-    const timestamps = result.timestamp;
-    const adjClose = result.indicators.adjclose?.[0]?.adjclose;
-    if (!timestamps || !adjClose || timestamps.length < 2) {
-      throw new Error(`No data found for "${ticker}" in this date range.`);
-    }
-    const data = timestamps.map((ts, i) => ({
-      date: new Date(ts * 1000),
-      price: adjClose[i]
-    })).filter(d => d.price != null && !isNaN(d.price));
-    if (data.length < 2) throw new Error('Not enough data points for this range.');
-    processAndRender(ticker, data, start, end);
+    const fetches = [fetchRawData(ticker, startTs, endTs, interval)];
+    if (ticker2) fetches.push(fetchRawData(ticker2, startTs, endTs, interval));
+    const [data1, data2] = await Promise.all(fetches);
+    if (data1.length < 2) throw new Error('Not enough data points.');
+    cachedTicker = ticker; cachedMonthlyData = null;
+    processAndRender(ticker, data1, ticker2||null, data2||null);
   } catch(e) {
     setLoading(false);
-    document.getElementById('placeholder').style.display = '';
     showError(e.message || 'Something went wrong. Please try again.');
   }
 }
-function processAndRender(ticker, data) {
-  const n = data.length;
-  const startPrice = data[0].price;
-  const endPrice = data[n-1].price;
-  const years = (data[n-1].date - data[0].date) / (365.25 * 24 * 3600 * 1000);
-  const cagr = Math.pow(endPrice / startPrice, 1 / years) - 1;
-  const totalReturn = (endPrice / startPrice - 1) * 100;
-  const finalValue = 10000 * (endPrice / startPrice);
-  const normalizedPrices = data.map(d => ({
-    date: d.date,
-    value: 10000 * (d.price / startPrice)
-  }));
-  const x = normalizedPrices.map((d, i) => i);
-  const y = normalizedPrices.map(d => Math.log(d.value));
-  const r2 = computeR2(x, y);
-  const { slope, intercept } = linearRegression(x, y);
-  const trendLine = x.map(xi => Math.exp(intercept + slope * xi));
-  renderChart(ticker, normalizedPrices, trendLine, cagr);
-  document.getElementById('statCagr').textContent = (cagr >= 0 ? '+' : '') + (cagr * 100).toFixed(2) + '%';
-  document.getElementById('statR2').textContent = r2.toFixed(3);
-  document.getElementById('statTotal').textContent = (totalReturn >= 0 ? '+' : '') + totalReturn.toFixed(1) + '%';
-  document.getElementById('statPeriod').textContent = `Over ${years.toFixed(1)} years`;
-  document.getElementById('statFinal').textContent = '$' + finalValue.toLocaleString('en-US', {maximumFractionDigits: 0});
+
+async function findBestTrend() {
+  clearError();
+  document.getElementById('bestResult').classList.remove('visible');
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  if (!ticker) return showError('Please enter a ticker symbol first.');
+
+  document.getElementById('myChart').style.display = 'none';
+  document.getElementById('statsRow').classList.remove('visible');
+  document.getElementById('statsRow2').classList.remove('visible');
+  document.getElementById('label1').style.display = 'none';
+  document.getElementById('label2').style.display = 'none';
+  document.getElementById('r2note').classList.remove('visible');
+  setLoading(true, true);
+
+  try {
+    const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
+
+    // Step 1: Monthly scan
+    document.getElementById('loaderText').textContent = 'Fetching monthly history...';
+    if (cachedTicker !== ticker || !cachedMonthlyData) {
+      cachedMonthlyData = await fetchRawData(ticker, 0, endTs, '1mo');
+      cachedTicker = ticker;
+    }
+    const allData = cachedMonthlyData;
+    if (allData.length < 12) throw new Error('Not enough historical data.');
+
+    // Step 2: Scan all windows
+    document.getElementById('loaderText').textContent = 'Scanning all windows...';
+    let bestR2 = -Infinity, bestIdx = 0;
+    for (let i = 0; i <= allData.length - 12; i++) {
+      const slice = allData.slice(i);
+      const x = slice.map((_,j) => j);
+      const y = slice.map(d => Math.log(d.price));
+      const r2 = computeR2(x, y);
+      if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
+    }
+
+    const bestStart = allData[bestIdx].date;
+    const bestEnd = allData[allData.length-1].date;
+    const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
+
+    // Step 3: Re-fetch at optimal resolution
+    const days = (bestEnd - bestStart) / 86400000;
+    const weeks = days / 7;
+    const chartInterval = days <= 1500 ? '1d' : weeks <= 1500 ? '1wk' : '1mo';
+    document.getElementById('loaderText').textContent = `Fetching ${chartInterval==='1d'?'daily':chartInterval==='1wk'?'weekly':'monthly'} chart data...`;
+    const startTs = Math.floor(bestStart.getTime() / 1000);
+    const chartData = await fetchRawData(ticker, startTs, endTs, chartInterval);
+
+    document.getElementById('startDate').value = bestStart.toISOString().split('T')[0];
+    document.getElementById('endDate').value = bestEnd.toISOString().split('T')[0];
+
+    const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
+    document.getElementById('btrText').innerHTML =
+      `Best window: <strong>${fmt(bestStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; R&sup2; = <strong>${bestR2.toFixed(4)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
+    document.getElementById('bestResult').classList.add('visible');
+
+    processAndRender(ticker, chartData, null, null);
+  } catch(e) {
+    setLoading(false);
+    showError(e.message || 'Something went wrong. Please try again.');
+  }
+}
+
+function processAndRender(ticker, data1, ticker2, data2) {
+  const calc = (data) => {
+    const n = data.length;
+    const sp = data[0].price, ep = data[n-1].price;
+    const years = (data[n-1].date - data[0].date) / (365.25*24*3600*1000);
+    const cagr = Math.pow(ep/sp, 1/years) - 1;
+    const totalReturn = (ep/sp - 1) * 100;
+    const finalVal = ep/sp;
+    const norm = data.map(d => ({ date: d.date, value: d.price/sp }));
+    const x = norm.map((_,i) => i);
+    const y = norm.map(d => Math.log(d.value));
+    const r2 = computeR2(x, y);
+    const { slope, intercept } = linearRegression(x, y);
+    const trend = x.map(xi => Math.exp(intercept + slope*xi));
+    return { cagr, totalReturn, finalVal, years, norm, trend, r2 };
+  };
+
+  const r1 = calc(data1);
+  const r2 = data2 && data2.length >= 2 ? calc(data2) : null;
+
+  const allVals = [...r1.norm.map(d => d.value), ...(r2 ? r2.norm.map(d => d.value) : [])];
+  const yMin = Math.min(...allVals) * 0.85;
+  const yMax = Math.max(...allVals) * 1.15;
+
+  renderChart(ticker, r1.norm, r1.trend, r1.cagr, yMin, yMax, ticker2, r2 ? r2.norm : null, r2 ? r2.trend : null);
+
+  // Stats row 1
+  const comparing = !!(ticker2 && r2);
+  document.getElementById('label1').style.display = comparing ? 'block' : 'none';
+  document.getElementById('labelTicker1').textContent = ticker;
+  document.getElementById('statCagr').textContent = (r1.cagr >= 0 ? '+' : '') + (r1.cagr*100).toFixed(2) + '%';
+  document.getElementById('statCagr').style.color = r1.cagr >= 0 ? 'var(--green)' : 'var(--red)';
+  document.getElementById('statR2').textContent = r1.r2.toFixed(4);
+  document.getElementById('statTotal').textContent = (r1.totalReturn >= 0 ? '+' : '') + r1.totalReturn.toFixed(1) + '%';
+  document.getElementById('statPeriod').textContent = `Over ${r1.years.toFixed(1)} years`;
+  document.getElementById('statFinal').textContent = r1.finalVal.toFixed(2);
   document.getElementById('statsRow').classList.add('visible');
+
+  // Stats row 2
+  if (comparing) {
+    document.getElementById('label2').style.display = 'block';
+    document.getElementById('labelTicker2').textContent = ticker2;
+    document.getElementById('statCagr2').textContent = (r2.cagr >= 0 ? '+' : '') + (r2.cagr*100).toFixed(2) + '%';
+    document.getElementById('statCagr2').style.color = r2.cagr >= 0 ? '#e8ff47' : 'var(--red)';
+    document.getElementById('statR2_2').textContent = r2.r2.toFixed(4);
+    document.getElementById('statTotal2').textContent = (r2.totalReturn >= 0 ? '+' : '') + r2.totalReturn.toFixed(1) + '%';
+    document.getElementById('statPeriod2').textContent = `Over ${r2.years.toFixed(1)} years`;
+    document.getElementById('statFinal2').textContent = r2.finalVal.toFixed(2);
+    document.getElementById('statsRow2').classList.add('visible');
+  } else {
+    document.getElementById('statsRow2').classList.remove('visible');
+  }
+
   document.getElementById('r2note').classList.add('visible');
   setLoading(false);
 }
+
 function computeR2(x, y) {
   const { slope, intercept } = linearRegression(x, y);
-  const yMean = y.reduce((a, b) => a + b, 0) / y.length;
+  const yMean = y.reduce((a,b) => a+b, 0) / y.length;
   let ssTot = 0, ssRes = 0;
   for (let i = 0; i < x.length; i++) {
     ssTot += Math.pow(y[i] - yMean, 2);
-    ssRes += Math.pow(y[i] - (intercept + slope * x[i]), 2);
+    ssRes += Math.pow(y[i] - (intercept + slope*x[i]), 2);
   }
-  return ssTot === 0 ? 1 : 1 - ssRes / ssTot;
+  return ssTot === 0 ? 1 : 1 - ssRes/ssTot;
 }
+
 function linearRegression(x, y) {
   const n = x.length;
-  const sumX = x.reduce((a, b) => a + b, 0);
-  const sumY = y.reduce((a, b) => a + b, 0);
-  const sumXY = x.reduce((a, xi, i) => a + xi * y[i], 0);
-  const sumX2 = x.reduce((a, xi) => a + xi * xi, 0);
-  const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / n;
+  const sumX = x.reduce((a,b) => a+b, 0);
+  const sumY = y.reduce((a,b) => a+b, 0);
+  const sumXY = x.reduce((a,xi,i) => a+xi*y[i], 0);
+  const sumX2 = x.reduce((a,xi) => a+xi*xi, 0);
+  const slope = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX);
+  const intercept = (sumY - slope*sumX) / n;
   return { slope, intercept };
 }
-function renderChart(ticker, normalizedPrices, trendLine, cagr) {
-  const labels = normalizedPrices.map(d =>
-    d.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
-  );
-  const values = normalizedPrices.map(d => d.value);
+
+function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, trend2) {
+  const labels = norm1.map(d => d.date.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}));
+  const isPositive = cagr >= 0;
+  const lineColor = isPositive ? '#3dffa0' : '#ff5c5c';
+
   if (myChart) { myChart.destroy(); myChart = null; }
   const canvas = document.getElementById('myChart');
   canvas.style.display = 'block';
-  document.getElementById('placeholder').style.display = 'none';
-  const isPositive = cagr >= 0;
-  const lineColor = isPositive ? '#3dffa0' : '#ff5c5c';
   const ctx = canvas.getContext('2d');
-  const gradient = ctx.createLinearGradient(0, 0, 0, 380);
-  gradient.addColorStop(0, isPositive ? 'rgba(61,255,160,0.18)' : 'rgba(255,92,92,0.18)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+  const grad1 = ctx.createLinearGradient(0, 0, 0, 570);
+  grad1.addColorStop(0, isPositive ? 'rgba(61,255,160,0.15)' : 'rgba(255,92,92,0.15)');
+  grad1.addColorStop(1, 'rgba(0,0,0,0)');
+
+  const datasets = [
+    { label: ticker, data: norm1.map(d => d.value), borderColor: lineColor, backgroundColor: grad1, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0, order: 1 },
+    { label: `${ticker} Trend`, data: trend1, borderColor: 'rgba(71,198,255,0.7)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2 }
+  ];
+
+  if (ticker2 && norm2) {
+    const grad2 = ctx.createLinearGradient(0, 0, 0, 570);
+    grad2.addColorStop(0, 'rgba(232,255,71,0.08)');
+    grad2.addColorStop(1, 'rgba(0,0,0,0)');
+    datasets.push({ label: ticker2, data: norm2.map(d => d.value), borderColor: '#e8ff47', backgroundColor: grad2, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, order: 3 });
+    if (trend2) datasets.push({ label: `${ticker2} Trend`, data: trend2, borderColor: 'rgba(232,255,71,0.5)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 4 });
+  }
+
   myChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: `${ticker} (Adj. Close, $10k base)`,
-          data: values,
-          borderColor: lineColor,
-          backgroundColor: gradient,
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHoverRadius: 5,
-          pointHoverBackgroundColor: lineColor,
-          fill: true,
-          tension: 0.3,
-          order: 1,
-        },
-        {
-          label: 'Exponential Trend',
-          data: trendLine,
-          borderColor: 'rgba(71,198,255,0.6)',
-          borderWidth: 1.5,
-          borderDash: [6, 4],
-          pointRadius: 0,
-          fill: false,
-          tension: 0,
-          order: 2,
-        }
-      ]
-    },
+    data: { labels, datasets },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: {
-          display: true,
-          labels: {
-            color: '#5a5a7a',
-            font: { family: 'DM Mono', size: 11 },
-            boxWidth: 24,
-            padding: 20,
-          }
-        },
+        legend: { display: true, labels: { color: '#5a5a7a', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
         tooltip: {
-          backgroundColor: '#11111a',
-          borderColor: '#1e1e2e',
-          borderWidth: 1,
-          titleColor: '#5a5a7a',
-          bodyColor: '#e8e8f0',
-          titleFont: { family: 'DM Mono', size: 11 },
-          bodyFont: { family: 'DM Mono', size: 13 },
-          padding: 14,
-          callbacks: {
-            label: ctx => {
-              const label = ctx.dataset.label.includes('Trend') ? 'Trend' : ticker;
-              return `  ${label}: $${ctx.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
-            }
-          }
+          backgroundColor: '#11111a', borderColor: '#1e1e2e', borderWidth: 1,
+          titleColor: '#5a5a7a', bodyColor: '#e8e8f0',
+          titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 13 }, padding: 14,
+          callbacks: { label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}` }
         }
       },
       scales: {
-        x: {
-          grid: { color: 'rgba(255,255,255,0.03)' },
-          ticks: {
-            color: '#5a5a7a',
-            font: { family: 'DM Mono', size: 10 },
-            maxTicksLimit: 10,
-            maxRotation: 0,
-          }
-        },
+        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#5a5a7a', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 } },
         y: {
+          type: 'logarithmic', min: yMin, max: yMax,
           grid: { color: 'rgba(255,255,255,0.05)' },
           ticks: {
-            color: '#5a5a7a',
-            font: { family: 'DM Mono', size: 10 },
-            callback: v => '$' + v.toLocaleString('en-US', {maximumFractionDigits: 0})
+            color: '#5a5a7a', font: { family: 'DM Mono', size: 10 },
+            minTicksLimit: 8, maxTicksLimit: 16,
+            callback: v => {
+              const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000];
+              const match = steps.find(s => Math.abs(s-v)/Math.max(v,0.001) < 0.02);
+              return match !== undefined ? String(Math.round(match)) : null;
+            }
           }
         }
       }
     }
   });
 }
-document.getElementById('ticker').addEventListener('keydown', e => {
-  if (e.key === 'Enter') fetchData();
-});
+
+document.getElementById('ticker').addEventListener('keydown', e => { if (e.key === 'Enter') fetchData(); });
+document.getElementById('ticker2').addEventListener('keydown', e => { if (e.key === 'Enter') fetchData(); });
 </script>
 </body>
 </html>
-

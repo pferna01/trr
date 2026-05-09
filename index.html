@@ -6,62 +6,70 @@
 <title>Pablo's Finance Project</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
   :root {
-    --bg: #0a0a0f; --surface: #11111a; --border: #1e1e2e;
-    --accent: #e8ff47; --accent2: #47c6ff; --text: #e8e8f0;
-    --muted: #5a5a7a; --green: #3dffa0; --red: #ff5c5c; --purple: #c084fc;
+    --bg: #ffffff; --surface: #f4f4f6; --border: #dcdce8;
+    --accent: #f97316; --accent2: #0ea5e9; --text: #0a0a0f;
+    --muted: #6b7280; --green: #16a34a; --red: #dc2626; --purple: #1a6b3c;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
-  body::before {
-    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0.4;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  }
+
   header { padding: 48px 48px 24px; display: flex; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--border); }
-  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; color: var(--accent); text-shadow: 0 0 40px rgba(232,255,71,0.3); }
-  .logo span { color: var(--text); opacity: 0.4; }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; color: #0a0a0f; text-shadow: none; }
+  .logo span { color: var(--purple); opacity: 1; }
   .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding-bottom: 6px; }
   main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; }
-  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto auto; gap: 16px; margin-bottom: 32px; align-items: end; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto auto auto; gap: 16px; margin-bottom: 32px; align-items: end; }
   .field { display: flex; flex-direction: column; gap: 8px; }
   label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
   input { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 16px; padding: 14px 18px; border-radius: 4px; outline: none; transition: border-color 0.2s; width: 100%; }
-  input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232,255,71,0.1); }
+  input:focus { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(26,107,60,0.1); }
   input::placeholder { color: var(--muted); }
-  .btn { background: var(--accent); color: #0a0a0f; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 36px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
-  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(232,255,71,0.35); }
+  .btn { background: #0a0a0f; color: #ffffff; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 36px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
   .btn:active { transform: translateY(0); }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .btn-trend { background: transparent; color: var(--purple); border: 1px solid var(--purple); font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 28px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s, background 0.2s; white-space: nowrap; }
-  .btn-trend:hover { background: rgba(192,132,252,0.1); transform: translateY(-1px); box-shadow: 0 4px 24px rgba(192,132,252,0.25); }
+  .btn-trend { background: var(--purple); color: #ffffff; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 28px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
+  .btn-trend:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(26,107,60,0.35); }
   .btn-trend:active { transform: translateY(0); }
   .btn-trend:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  .best-result { display: none; background: rgba(192,132,252,0.07); border: 1px solid rgba(192,132,252,0.3); border-radius: 6px; padding: 16px 24px; margin-bottom: 24px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--purple); line-height: 1.8; }
+  .btn-status { background: var(--accent2); color: #ffffff; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 28px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
+  .btn-status:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
+  .btn-status:active { transform: translateY(0); }
+  .best-result { display: none; background: rgba(26,107,60,0.07); border: 1px solid rgba(26,107,60,0.3); border-radius: 6px; padding: 16px 24px; margin-bottom: 24px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--purple); line-height: 1.8; }
   .best-result.visible { display: block; }
   .best-result strong { color: var(--text); }
   .btr-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; margin-bottom: 6px; }
   .stats-section-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; display: none; }
+  .stats-with-ticker { display: none; align-items: center; gap: 16px; margin-bottom: 12px; }
+  .stats-with-ticker.visible { display: flex; }
+  .stats-ticker-label { font-family: 'Bebas Neue', sans-serif; font-size: 52px; color: var(--text); line-height: 1; min-width: 80px; text-align: center; }
+  .stats-ticker-label.t2 { color: #8b1a1a; }
+  .stats-inner { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; opacity: 0; transition: opacity 0.4s; }
+  .stats-inner.visible { opacity: 1; }
   .stats-section-label .t1 { color: var(--green); }
-  .stats-section-label .t2 { color: #e8ff47; }
+  .stats-section-label .t2 { color: #f97316; }
   .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 12px; opacity: 0; transition: opacity 0.4s; }
   .stats.visible { opacity: 1; }
-  .stats2 { display: none; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
-  .stats2.visible { display: grid; }
+  .stats2 { display: none; }
+  .stats2.visible { display: flex; }
   .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 24px 20px; position: relative; overflow: hidden; }
-  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
+  .stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--purple); }
   .stat-card.blue::before { background: var(--accent2); }
   .stat-card.green::before { background: var(--green); }
-  .stat-card.yellow::before { background: #e8ff47; }
+  .stat-card.yellow::before { background: #f97316; }
   .stat-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
-  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 1; color: var(--accent); }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 1; color: var(--text); }
   .stat-card.blue .stat-value { color: var(--accent2); }
   .stat-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 6px; }
-  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 32px; position: relative; height: 630px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
+  .stat-sub-prices { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); margin-top: 8px; opacity: 0.85; letter-spacing: 0.3px; }
+  .chart-wrap { background: #ffffff; border: 1px solid var(--border); border-radius: 6px; padding: 32px; position: relative; height: 630px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
   .chart-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
   .loader { display: none; flex-direction: column; align-items: center; gap: 16px; }
   .loader.active { display: flex; }
-  .spinner { width: 40px; height: 40px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  .spinner { width: 40px; height: 40px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.7s linear infinite; }
   .spinner.purple { border-top-color: var(--purple); }
   @keyframes spin { to { transform: rotate(360deg); } }
   .loader-text { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
@@ -70,8 +78,29 @@
   .r2-note { margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 16px 20px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--border); display: none; }
   .r2-note.visible { display: block; }
   @media (max-width: 900px) {
-    header { padding: 24px 20px; } main { padding: 24px 20px; }
-    .controls { grid-template-columns: 1fr 1fr; } .stats, .stats2 { grid-template-columns: 1fr 1fr; } .logo { font-size: 36px; }
+    header { padding: 20px 16px 16px; }
+    .logo { font-size: 30px; }
+    .tagline { display: none; }
+    main { padding: 16px; }
+    .controls { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .controls .field:nth-child(1), .controls .field:nth-child(2) { grid-column: span 1; }
+    .controls .field:nth-child(3), .controls .field:nth-child(4) { grid-column: span 1; }
+    .controls .field:nth-child(5), .controls .field:nth-child(6) { grid-column: span 1; }
+    input { font-size: 14px; padding: 10px 12px; }
+    .btn, .btn-trend { font-size: 16px; padding: 10px 16px; }
+    .stats, .stats2 { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-value { font-size: 28px; }
+    .chart-wrap { height: 320px; padding: 12px; }
+    .r2-note { font-size: 10px; }
+  }
+
+  @media (max-width: 480px) {
+    .controls { grid-template-columns: 1fr 1fr; }
+    .stats, .stats2 { grid-template-columns: 1fr 1fr; }
+    .chart-wrap { height: 280px; padding: 8px; }
+    .stat-label { font-size: 9px; }
+    .stat-value { font-size: 24px; }
+    .stat-sub, .stat-sub-prices { font-size: 10px; }
   }
 </style>
 </head>
@@ -82,31 +111,45 @@
 </header>
 <main>
   <div class="controls">
-    <div class="field"><label>Ticker 1</label><input type="text" id="ticker" placeholder="AAPL, SPY..." maxlength="10"></div>
-    <div class="field"><label>Ticker 2 (optional)</label><input type="text" id="ticker2" placeholder="Compare to..." maxlength="10"></div>
-    <div class="field"><label>Start Date</label><input type="date" id="startDate"></div>
-    <div class="field"><label>End Date</label><input type="date" id="endDate"></div>
+    <div class="field"><label>Ticker 1</label><input type="text" id="ticker" placeholder="AAPL, SPY..." maxlength="10" style="text-transform:uppercase;"></div>
+    <div class="field"><label>Ticker 2 (optional)</label><input type="text" id="ticker2" placeholder="Compare to..." maxlength="10" style="text-transform:uppercase;"></div>
+    <div class="field"><label>Start Date</label><input type="text" id="startDate" placeholder="1985-01-01" maxlength="10"></div>
+    <div class="field"><label>End Date</label><input type="text" id="endDate" placeholder="2026-05-08" maxlength="10"></div>
     <div class="field"><label>&nbsp;</label><button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button></div>
     <div class="field"><label>&nbsp;</label><button class="btn-trend" id="trendBtn" onclick="findBestTrend()">BEST TREND</button></div>
+    <div class="field"><label>&nbsp;</label><button class="btn-status" onclick="showStatus()">STATUS</button></div>
   </div>
   <div class="error-msg" id="errorMsg"></div>
   <div class="best-result" id="bestResult">
     <div class="btr-label">&#11041; Best Trend Window Found</div>
     <span id="btrText"></span>
   </div>
-  <div class="stats-section-label" id="label1">&#8212; <span class="t1" id="labelTicker1"></span></div>
-  <div class="stats" id="statsRow">
-    <div class="stat-card green"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
-    <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
-    <div class="stat-card green"><div class="stat-label">Total Return</div><div class="stat-value" id="statTotal">&#8212;</div><div class="stat-sub" id="statPeriod">Over period</div></div>
-    <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+  <div class="stats-with-ticker" id="statsRow">
+    <div class="stats-ticker-label" id="statsTickerBig1">—</div>
+    <div class="stats-inner" id="statsInner1">
+      <div class="stat-card green"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
+      <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
+      <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+      <div class="stat-card"><div class="stat-label">vs Trend Line</div><div class="stat-value" id="statVsTrend">&#8212;</div><div class="stat-sub-prices" id="statVsTrendSub">Latest vs trend</div></div>
+      <div class="stat-card"><div class="stat-label">Max Discount to Trend</div><div class="stat-value" id="statMaxDiscount">&#8212;</div><div class="stat-sub" id="statMaxDiscountDate">Lowest ever vs trend</div></div>
+    </div>
   </div>
-  <div class="stats-section-label" id="label2">&#8212; <span class="t2" id="labelTicker2"></span></div>
-  <div class="stats2" id="statsRow2">
-    <div class="stat-card yellow"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr2" style="color:#e8ff47">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
-    <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2_2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
-    <div class="stat-card yellow"><div class="stat-label">Total Return</div><div class="stat-value" id="statTotal2" style="color:#e8ff47">&#8212;</div><div class="stat-sub" id="statPeriod2">Over period</div></div>
-    <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal2">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+  <div class="stats-with-ticker" id="statsRow2">
+    <div class="stats-ticker-label t2" id="statsTickerBig2">—</div>
+    <div class="stats-inner" id="statsInner2">
+      <div class="stat-card yellow"><div class="stat-label">Annual Return (CAGR)</div><div class="stat-value" id="statCagr2" style="color:#8b1a1a">&#8212;</div><div class="stat-sub">Dividends reinvested</div></div>
+      <div class="stat-card blue"><div class="stat-label">R&sup2; (Trend Fit)</div><div class="stat-value" id="statR2_2">&#8212;</div><div class="stat-sub">Log-linear regression</div></div>
+      <div class="stat-card"><div class="stat-label">Growth Multiple</div><div class="stat-value" id="statFinal2">&#8212;</div><div class="stat-sub">From a base of 1</div></div>
+      <div class="stat-card"><div class="stat-label">vs Trend Line</div><div class="stat-value" id="statVsTrend2">&#8212;</div><div class="stat-sub-prices" id="statVsTrendSub2">Latest vs trend</div></div>
+      <div class="stat-card"><div class="stat-label">Max Discount to Trend</div><div class="stat-value" id="statMaxDiscount2">&#8212;</div><div class="stat-sub" id="statMaxDiscountDate2">Lowest ever vs trend</div></div>
+    </div>
+  </div>
+  <div class="stats-with-ticker" id="statsRowRatio" style="display:none;">
+    <div class="stats-ticker-label" style="font-size:32px;color:#6b7280;">RATIO</div>
+    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr;">
+      <div class="stat-card"><div class="stat-label">Min Relative Value</div><div class="stat-value" id="statMinRatio" style="color:var(--red)">&#8212;</div><div class="stat-sub" id="statMinRatioDate">Date of lowest ratio</div></div>
+      <div class="stat-card"><div class="stat-label">Current Relative Value</div><div class="stat-value" id="statCurRatio">&#8212;</div><div class="stat-sub">vs historical low</div></div>
+    </div>
   </div>
   <div class="chart-wrap">
     <div class="loader" id="loader"><div class="spinner" id="spinnerEl"></div><div class="loader-text" id="loaderText">Fetching data...</div></div>
@@ -122,12 +165,15 @@
 let myChart = null;
 let cachedMonthlyData = null;
 let cachedTicker = null;
+let bestTrendStart = null;
+let bestTrendEnd = null;
 
 const AV_KEYS = [
   'T1CDEDP45N03FTF1','NSLYQQRAXYAHXF0O','MJEHZNFMZTVCYBOV','7MDRE86X2TKMIJ84',
   'JVUOF0Y0OAYU9H35','E4FDE6G689NMTMFX','FWB2227UETNQUUSO','W8XA6VAX4LVCHGPY'
 ];
 const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
+const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
 
 // Set default dates
 const today = new Date();
@@ -135,8 +181,8 @@ const yesterday = new Date(today);
 yesterday.setDate(today.getDate() - 1);
 const tenYearsAgo = new Date(today);
 tenYearsAgo.setFullYear(today.getFullYear() - 10);
-document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 document.getElementById('startDate').value = tenYearsAgo.toISOString().split('T')[0];
+document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 
 function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('visible'); }
 function clearError() { document.getElementById('errorMsg').classList.remove('visible'); }
@@ -158,83 +204,135 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   let avFunction, seriesKey, outputSize = '';
   if (interval === '1mo') { avFunction = 'TIME_SERIES_MONTHLY_ADJUSTED'; seriesKey = 'Monthly Adjusted Time Series'; }
   else if (interval === '1d') { avFunction = 'TIME_SERIES_DAILY_ADJUSTED'; seriesKey = 'Time Series (Daily)'; outputSize = '&outputsize=full'; }
-  else { avFunction = 'TIME_SERIES_WEEKLY_ADJUSTED'; seriesKey = 'Weekly Adjusted Time Series'; }
+  else { avFunction = 'TIME_SERIES_WEEKLY_ADJUSTED'; seriesKey = 'Weekly Adjusted Time Series'; } // handles both 1wk and 2wk
 
+  const biWeekly = interval === '2wk';
   const yahooInterval = interval === '1mo' ? '1mo' : interval === '1d' ? '1d' : '1wk';
   // Yahoo adjclose already accounts for splits. We fetch raw close + dividends
   // separately so we can compute true total return with dividend reinvestment.
   const yahooBase = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
-  const worker = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
+  const worker = WORKER;
 
-  // parseYahooTotalReturn: true total return via raw close + manual dividend reinvestment
-  // Yahoo adjclose only adjusts for splits, not true reinvested dividends.
-  // We simulate buying fractional shares with each dividend at that day's price.
-  const parseYahooTotalReturn = (json) => {
-    if (!json?.chart?.result?.[0]) return null;
-    const result = json.chart.result[0];
-    const timestamps = result.timestamp;
-    const rawClose = result.indicators?.quote?.[0]?.close;
-    const adjClose = result.indicators?.adjclose?.[0]?.adjclose;
-    if (!timestamps || !rawClose || timestamps.length < 2) return null;
+  // True total return with dividend reinvestment
+  // Yahoo caps at 500 points per request — fetch 4 parallel chunks to get full history
+  const fetchYahooTotalReturn = async () => {
+    const maxHistoryTs = -315619200; // Jan 1 1960
+    const chunkStart = Math.min(maxHistoryTs, startTs);
+    const range = endTs - chunkStart;
 
-    // Build split-adjustment factor for each point: adjFactor = adj/raw
-    // This lets us convert raw prices to split-adjusted prices at any point
-    const pts = timestamps.map((ts, i) => ({
-      date: new Date(ts * 1000),
-      ts: ts * 1000,
-      raw: rawClose[i],
-      adj: adjClose ? adjClose[i] : rawClose[i]
-    })).filter(d => d.raw != null && !isNaN(d.raw) && d.raw > 0)
-      .sort((a, b) => a.ts - b.ts);
+    // Use 8 chunks — each covers ~8 years for a 66-year history
+    // This keeps each chunk well under Yahoo's 500-point cap even for weekly data
+    const NUM_CHUNKS = 8;
+    const step = Math.floor(range / NUM_CHUNKS);
+    const overlap = 86400 * 30; // 30-day overlap to avoid gaps
+
+    // Fetch a single time-range chunk (always same interval for consistent density)
+    const fetchChunk = async (p1, p2, chunkInterval = yahooInterval) => {
+      try {
+        const url = `${yahooBase}?period1=${p1}&period2=${p2}&interval=${chunkInterval}&includeAdjustedClose=true`;
+        const resp = await fetch(worker + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) return [];
+        const json = await resp.json();
+        if (!json?.chart?.result?.[0]) return [];
+        const r = json.chart.result[0];
+        const raw = r.indicators?.quote?.[0]?.close;
+        const adj = r.indicators?.adjclose?.[0]?.adjclose;
+        const ts = r.timestamp;
+        if (!ts || ts.length < 1) return [];
+        return ts.map((t, i) => {
+          const rawVal = raw?.[i];
+          const adjVal = (adj?.[i] != null && !isNaN(adj[i])) ? adj[i] : rawVal;
+          const price = adjVal ?? rawVal;
+          return { date: new Date(t * 1000), ts: t * 1000, raw: rawVal ?? price, adj: price };
+        }).filter(d => d.adj != null && !isNaN(d.adj) && d.adj > 0);
+      } catch(e) { return []; }
+    };
+
+    // All chunks use the same yahooInterval for consistent density
+    const chunkBoundaries = Array.from({length: NUM_CHUNKS}, (_, i) => {
+      const p1 = chunkStart + step * i;
+      const p2 = i === NUM_CHUNKS - 1 ? endTs : chunkStart + step * (i + 1) + overlap;
+      return [p1, p2, yahooInterval];
+    });
+
+    // Fetch dividends separately — use daily interval to capture ALL historical dividends
+    // including pre-1985 which weekly interval misses
+    const divHistUrl = `${yahooBase}?period1=${maxHistoryTs}&period2=${endTs}&interval=1d&events=div&includeAdjustedClose=true`;
+
+    // Fire all chunks + div fetch in parallel
+    const [divResp, ...chunkResults] = await Promise.all([
+      fetch(worker + encodeURIComponent(divHistUrl), { signal: AbortSignal.timeout(15000) }),
+      ...chunkBoundaries.map(([p1, p2, ci]) => fetchChunk(p1, p2, ci))
+    ]);
+    console.log('Chunk sizes:', chunkResults.map(c => c.length));
+    console.log('Chunk first dates:', chunkResults.map(c => c[0]?.date?.toISOString().split('T')[0] || 'empty'));
+
+    // Stitch chunks together using return ratios to handle price scale mismatches
+    // Each chunk's adjclose scale may differ — we normalize by stitching at overlap points
+    const stitchedChunks = chunkResults.filter(c => c.length > 0);
+    let pts = [];
+    if (stitchedChunks.length > 0) {
+      pts = [...stitchedChunks[0]];
+      for (let ci = 1; ci < stitchedChunks.length; ci++) {
+        const chunk = stitchedChunks[ci];
+        if (chunk.length === 0) continue;
+        // Find overlap: last point of previous stitched data vs first point of new chunk
+        const prevLast = pts[pts.length - 1];
+        // Find matching point in new chunk (same or closest timestamp)
+        const overlapIdx = chunk.findIndex(d => d.ts >= prevLast.ts);
+        if (overlapIdx === -1) {
+          // No overlap — just append with scale adjustment
+          const scaleFactor = prevLast.adj / chunk[0].adj;
+          chunk.forEach(d => { d.adj = d.adj * scaleFactor; d.raw = d.raw * scaleFactor; });
+          pts.push(...chunk);
+        } else {
+          // Scale new chunk to match at overlap point
+          const overlapPt = chunk[overlapIdx];
+          const scaleFactor = prevLast.adj / overlapPt.adj;
+          const newPts = chunk.slice(overlapIdx + 1).map(d => ({
+            ...d, adj: d.adj * scaleFactor, raw: d.raw * scaleFactor
+          }));
+          pts.push(...newPts);
+        }
+      }
+      // Deduplicate and sort
+      pts = pts.filter((d, i, arr) => arr.findIndex(x => x.ts === d.ts) === i)
+               .sort((a, b) => a.ts - b.ts);
+    }
 
     if (pts.length < 2) return null;
 
-    // Get dividend events
-    const divEvents = result.events?.dividends || {};
-    const dividends = Object.values(divEvents)
-      .map(d => ({ ts: d.date * 1000, amount: d.amount }))
-      .sort((a, b) => a.ts - b.ts);
-
-    // For each data point, find the split-adjustment factor
-    // adjFactor at point i = adj[i] / raw[i]
-    // Use split-adjusted price for reinvestment calculations
-
-    // Simulate total return:
-    // Start with 1 share. At each dividend, buy more shares.
-    // Value at time t = shares * splitAdjPrice[t]
-    let shares = 1.0;
-    const totalReturn = pts.map((pt, i) => {
-      const prevTs = i > 0 ? pts[i-1].ts : 0;
-      // Dividends paid in this period
-      const divsNow = dividends.filter(d => d.ts > prevTs && d.ts <= pt.ts);
-      for (const div of divsNow) {
-        // Split-adjusted price at this point
-        const splitAdjFactor = pt.adj / pt.raw;
-        const splitAdjPrice = pt.raw * splitAdjFactor;
-        if (splitAdjPrice > 0) {
-          // Reinvest: fractional shares bought = (shares * divAmount) / splitAdjPrice
-          shares += (shares * div.amount) / splitAdjPrice;
-        }
+    // Extract dividends
+    let dividends = [];
+    try {
+      if (divResp.ok) {
+        const divJson = await divResp.json();
+        const divEvents = divJson?.chart?.result?.[0]?.events?.dividends || {};
+        dividends = Object.values(divEvents)
+          .map(d => ({ ts: d.date * 1000, amount: parseFloat(d.amount) }))
+          .filter(d => !isNaN(d.amount) && d.amount > 0)
+          .sort((a, b) => a.ts - b.ts);
       }
-      return {
-        date: pt.date,
-        price: pt.adj * shares  // total portfolio value in split-adjusted terms
-      };
-    });
+    } catch(e) {}
 
+    // Downsample to bi-weekly if needed
+    if (biWeekly) {
+      pts.splice(0, pts.length, ...pts.filter((_, i) => i % 2 === 0));
+    }
+
+    // adjclose already includes dividend adjustments — use directly as total return
+    const totalReturn = pts.map(pt => ({ date: pt.date, price: pt.adj }));
     return totalReturn;
   };
 
+
   // 1. Yahoo Finance via Cloudflare Worker — deep history + true dividend reinvestment
   try {
-    const yahooUrl = `${yahooBase}?period1=${Math.max(0,startTs)}&period2=${endTs}&interval=${yahooInterval}&events=div&includeAdjustedClose=true`;
-    const resp = await fetch(worker + encodeURIComponent(yahooUrl), { signal: AbortSignal.timeout(15000) });
-    if (resp.ok) {
-      const json = await resp.json();
-      const entries = parseYahooTotalReturn(json);
-      if (entries) {
-        const filtered = filterEntries(entries);
-        if (filtered.length >= 2) return filtered;
+    const entries = await fetchYahooTotalReturn();
+    if (entries) {
+      const filtered = filterEntries(entries);
+      if (filtered.length >= 2) {
+        return filtered;
       }
     }
   } catch(e) {}
@@ -252,7 +350,9 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
         const entries = result.values.map(v => ({ date: new Date(v.datetime), price: parseFloat(v.close) }))
           .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
         const filtered = filterEntries(entries);
-        if (filtered.length >= 2) return filtered;
+        if (filtered.length >= 2) {
+          return filtered;
+        }
       }
     }
   } catch(e) { if (e.message && e.message.includes('not found')) throw e; }
@@ -271,7 +371,9 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
         .map(([ds, vals]) => ({ date: new Date(ds), price: parseFloat(vals['5. adjusted close'] || vals['4. close']) }))
         .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
       const filtered = filterEntries(entries);
-      if (filtered.length >= 2) return filtered;
+      if (filtered.length >= 2) {
+        return filtered;
+      }
     } catch(e) { if (e.message && e.message.includes('not found')) throw e; continue; }
   }
 
@@ -283,24 +385,27 @@ async function fetchData() {
   document.getElementById('bestResult').classList.remove('visible');
   const ticker = document.getElementById('ticker').value.trim().toUpperCase();
   const ticker2 = document.getElementById('ticker2').value.trim().toUpperCase();
-  const start = document.getElementById('startDate').value;
-  const end = document.getElementById('endDate').value;
+  const start = document.getElementById('startDate').value.trim();
+  const end = document.getElementById('endDate').value.trim();
   if (!ticker) return showError('Please enter a ticker symbol.');
-  if (!start || !end) return showError('Please select a start and end date.');
+  if (!start || !end) return showError('Please enter start and end dates (yyyy-mm-dd).');
   if (new Date(start) >= new Date(end)) return showError('Start date must be before end date.');
 
   document.getElementById('myChart').style.display = 'none';
   document.getElementById('statsRow').classList.remove('visible');
   document.getElementById('statsRow2').classList.remove('visible');
-  document.getElementById('label1').style.display = 'none';
-  document.getElementById('label2').style.display = 'none';
+  document.getElementById('statsInner1').classList.remove('visible');
+  document.getElementById('statsInner2').classList.remove('visible');
+  document.getElementById('statsRowRatio').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
   setLoading(true, false);
 
   const days = (new Date(end) - new Date(start)) / 86400000;
   const weeks = days / 7;
-  const interval = days <= 1500 ? '1d' : weeks <= 1500 ? '1wk' : '1mo';
-  document.getElementById('loaderText').textContent = `Fetching ${interval==='1d'?'daily':interval==='1wk'?'weekly':'monthly'} data...`;
+  // Never use monthly — Yahoo monthly caps at ~1985. Use weekly for all long ranges.
+  const interval = days <= 1500 ? '1d' : '1wk';
+  const intervalLabel = {'1d':'daily','1wk':'weekly','2wk':'bi-weekly','1mo':'monthly'}[interval];
+  document.getElementById('loaderText').textContent = `Fetching ${intervalLabel} data...`;
 
   try {
     const startTs = Math.floor(new Date(start).getTime() / 1000);
@@ -326,48 +431,84 @@ async function findBestTrend() {
   document.getElementById('myChart').style.display = 'none';
   document.getElementById('statsRow').classList.remove('visible');
   document.getElementById('statsRow2').classList.remove('visible');
-  document.getElementById('label1').style.display = 'none';
-  document.getElementById('label2').style.display = 'none';
+  document.getElementById('statsInner1').classList.remove('visible');
+  document.getElementById('statsInner2').classList.remove('visible');
+  document.getElementById('statsRowRatio').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
   setLoading(true, true);
 
   try {
     const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
 
-    // Step 1: Monthly scan
-    document.getElementById('loaderText').textContent = 'Fetching monthly history...';
-    if (cachedTicker !== ticker || !cachedMonthlyData) {
-      cachedMonthlyData = await fetchRawData(ticker, 0, endTs, '1mo');
-      cachedTicker = ticker;
+    // Step 1: Fetch full history for scan using weekly data
+    // Yahoo weekly goes much further back than monthly (which caps at ~1984)
+    document.getElementById('loaderText').textContent = 'Scanning history...';
+    const veryEarlyTs = -315619200; // Jan 1 1960
+
+    const weeklyData = await fetchRawData(ticker, veryEarlyTs, endTs, '1wk');
+
+    // Downsample weekly to monthly for the R² scan
+    const monthlyMap = new Map();
+    for (const d of weeklyData) {
+      const key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
+      if (!monthlyMap.has(key)) monthlyMap.set(key, d);
     }
-    const allData = cachedMonthlyData;
+    // Stitch price series: normalize each point as cumulative return
+    // This eliminates scale mismatches between chunks completely
+    const allDataRaw = Array.from(monthlyMap.values()).sort((a, b) => a.date - b.date);
+    // Build a clean return series: detect jumps and rescale
+    const stitched = [{ date: allDataRaw[0].date, price: 1.0 }];
+    for (let i = 1; i < allDataRaw.length; i++) {
+      const prev = allDataRaw[i-1].price;
+      const curr = allDataRaw[i].price;
+      if (!prev || !curr || prev <= 0 || curr <= 0 || isNaN(prev) || isNaN(curr)) continue;
+      const ratio = curr / prev;
+      // Skip obvious data artifacts (>50% jump or drop in one month)
+      if (ratio > 1.5 || ratio < 0.5) continue;
+      stitched.push({ date: allDataRaw[i].date, price: stitched[stitched.length-1].price * ratio });
+    }
+    const allData = stitched;
+    cachedMonthlyData = allData;
+    cachedTicker = ticker;
     if (allData.length < 12) throw new Error('Not enough historical data.');
 
     // Step 2: Scan all windows
     document.getElementById('loaderText').textContent = 'Scanning all windows...';
     let bestR2 = -Infinity, bestIdx = 0;
-    for (let i = 0; i <= allData.length - 12; i++) {
+    for (let i = 0; i <= allData.length - 2; i++) {
       const slice = allData.slice(i);
+      if (slice.length < 3) continue;
+      if (slice.some(d => !d.price || d.price <= 0 || isNaN(d.price))) continue;
       const x = slice.map((_,j) => j);
       const y = slice.map(d => Math.log(d.price));
+      if (y.every(v => v === y[0])) continue;
       const r2 = computeR2(x, y);
+      if (isNaN(r2)) continue;
       if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
     }
+
 
     const bestStart = allData[bestIdx].date;
     const bestEnd = allData[allData.length-1].date;
     const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
 
-    // Step 3: Re-fetch at optimal resolution
-    const days = (bestEnd - bestStart) / 86400000;
-    const weeks = days / 7;
-    const chartInterval = days <= 1500 ? '1d' : weeks <= 1500 ? '1wk' : '1mo';
-    document.getElementById('loaderText').textContent = `Fetching ${chartInterval==='1d'?'daily':chartInterval==='1wk'?'weekly':'monthly'} chart data...`;
+    // Step 3: Use the scan data directly — no re-fetch needed
+    // This ensures R² in display matches R² from scan
     const startTs = Math.floor(bestStart.getTime() / 1000);
-    const chartData = await fetchRawData(ticker, startTs, endTs, chartInterval);
+    let chartData = allData.filter(d => d.date >= bestStart);
+    // Downsample if too many points
+    if (chartData.length > 1500) {
+      const nth = Math.ceil(chartData.length / 1500);
+      chartData = chartData.filter((_, i) => i % nth === 0);
+      if (chartData[chartData.length-1] !== allData[allData.length-1]) {
+        chartData.push(allData[allData.length-1]);
+      }
+    }
 
-    document.getElementById('startDate').value = bestStart.toISOString().split('T')[0];
-    document.getElementById('endDate').value = bestEnd.toISOString().split('T')[0];
+    bestTrendStart = bestStart.toISOString().split('T')[0];
+    bestTrendEnd = bestEnd.toISOString().split('T')[0];
+    document.getElementById('startDate').value = bestTrendStart;
+    document.getElementById('endDate').value = bestTrendEnd;
 
     const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
     document.getElementById('btrText').innerHTML =
@@ -382,6 +523,8 @@ async function findBestTrend() {
 }
 
 function processAndRender(ticker, data1, ticker2, data2) {
+  data1 = [...data1]; // make mutable copy
+  if (data2) data2 = [...data2];
   const calc = (data) => {
     const n = data.length;
     const sp = data[0].price, ep = data[n-1].price;
@@ -395,43 +538,134 @@ function processAndRender(ticker, data1, ticker2, data2) {
     const r2 = computeR2(x, y);
     const { slope, intercept } = linearRegression(x, y);
     const trend = x.map(xi => Math.exp(intercept + slope*xi));
-    return { cagr, totalReturn, finalVal, years, norm, trend, r2 };
+    // % above/below trend: latest actual vs latest trend value
+    const latestActual = norm[n-1].value;
+    const latestTrend = trend[n-1];
+    const vsTrend = ((latestActual - latestTrend) / latestTrend) * 100;
+    // Max discount: find lowest point vs trend (most below trend line)
+    let maxDiscount = 0;
+    let maxDiscountDate = null;
+    for (let i = 0; i < n; i++) {
+      const discount = ((norm[i].value - trend[i]) / trend[i]) * 100;
+      if (discount < maxDiscount) {
+        maxDiscount = discount;
+        maxDiscountDate = norm[i].date;
+      }
+    }
+    return { cagr, totalReturn, finalVal, years, norm, trend, r2, vsTrend, maxDiscount, maxDiscountDate };
   };
+
+  // Ensure last data point is always yesterday
+  const ensureYesterday = (data) => {
+    if (!data || data.length < 2) return data;
+    const lastDate = data[data.length - 1].date;
+    const yest = new Date(yesterday);
+    yest.setHours(0, 0, 0, 0);
+    lastDate.setHours(0, 0, 0, 0);
+    // If last point is not yesterday, add a copy of last point dated yesterday
+    if (lastDate.getTime() !== yest.getTime()) {
+      data = [...data, { date: new Date(yesterday), price: data[data.length - 1].price }];
+    }
+    return data;
+  };
+  data1 = ensureYesterday(data1);
+  if (data2) data2 = ensureYesterday(data2);
 
   const r1 = calc(data1);
   const r2 = data2 && data2.length >= 2 ? calc(data2) : null;
 
-  const allVals = [...r1.norm.map(d => d.value), ...(r2 ? r2.norm.map(d => d.value) : [])];
+  const allVals = [...r1.norm.map(d => d.value), ...(r2 ? r2.norm.map(d => d.value) : []),
+    ...r1.trend, ...(r2 ? r2.trend : [])];
   const yMin = Math.min(...allVals) * 0.85;
   const yMax = Math.max(...allVals) * 1.15;
+
+  // Compute (stock_price * VFINX_trend) / (VFINX_price * stock_trend) ratio
+  const ratioRow = document.getElementById('statsRowRatio');
+  if (r2 && r2.norm.length > 0) {
+    // Build date-indexed lookup for norm2 and trend2
+    const norm2Map = new Map();
+    r2.norm.forEach((d, i) => norm2Map.set(d.date.toISOString().split('T')[0], { value: d.value, trend: r2.trend[i] }));
+
+    let minRatio = Infinity, minRatioDate = null, curRatio = null;
+    r1.norm.forEach((d, i) => {
+      const key = d.date.toISOString().split('T')[0];
+      const v2 = norm2Map.get(key);
+      if (!v2) return;
+      const ratio = (d.value * v2.trend) / (v2.value * r1.trend[i]);
+      if (ratio < minRatio) { minRatio = ratio; minRatioDate = d.date; }
+      curRatio = ratio; // last valid point = current
+    });
+
+    if (minRatioDate) {
+      const el = document.getElementById('statMinRatio');
+      el.textContent = minRatio.toFixed(4);
+      el.style.color = 'var(--red)';
+      document.getElementById('statMinRatioDate').textContent =
+        minRatioDate.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+      const curEl = document.getElementById('statCurRatio');
+      curEl.textContent = curRatio ? curRatio.toFixed(4) : '—';
+      curEl.style.color = curRatio && curRatio <= minRatio * 1.1 ? 'var(--red)' : 'var(--green)';
+      ratioRow.style.display = 'flex';
+      document.getElementById('statsInnerRatio').style.opacity = '1';
+    }
+  } else {
+    ratioRow.style.display = 'none';
+  }
 
   renderChart(ticker, r1.norm, r1.trend, r1.cagr, yMin, yMax, ticker2, r2 ? r2.norm : null, r2 ? r2.trend : null);
 
   // Stats row 1
   const comparing = !!(ticker2 && r2);
-  document.getElementById('label1').style.display = comparing ? 'block' : 'none';
-  document.getElementById('labelTicker1').textContent = ticker;
+  document.getElementById('statsTickerBig1').textContent = ticker;
+  document.getElementById('statsInner1').classList.add('visible');
   document.getElementById('statCagr').textContent = (r1.cagr >= 0 ? '+' : '') + (r1.cagr*100).toFixed(2) + '%';
   document.getElementById('statCagr').style.color = r1.cagr >= 0 ? 'var(--green)' : 'var(--red)';
   document.getElementById('statR2').textContent = r1.r2.toFixed(4);
-  document.getElementById('statTotal').textContent = (r1.totalReturn >= 0 ? '+' : '') + r1.totalReturn.toFixed(1) + '%';
-  document.getElementById('statPeriod').textContent = `Over ${r1.years.toFixed(1)} years`;
+
   document.getElementById('statFinal').textContent = r1.finalVal.toFixed(2);
+  const vt1 = r1.vsTrend;
+  const vtEl1 = document.getElementById('statVsTrend');
+  vtEl1.textContent = (vt1 >= 0 ? '+' : '') + vt1.toFixed(1) + '%';
+  vtEl1.style.color = vt1 >= 0 ? 'var(--green)' : 'var(--red)';
+  const latestPrice1 = (r1.norm[r1.norm.length-1].value * data1[0].price).toFixed(2);
+  const trendPrice1 = (r1.trend[r1.trend.length-1] * data1[0].price).toFixed(2);
+  document.getElementById('statVsTrendSub').innerHTML = `Price&nbsp;&nbsp;<span style="color:var(--green)">$${latestPrice1}</span><br>Trend&nbsp;&nbsp;&nbsp;<span style="color:var(--accent2)">$${trendPrice1}</span>`;
+  const md1 = r1.maxDiscount;
+  const mdEl1 = document.getElementById('statMaxDiscount');
+  mdEl1.textContent = md1.toFixed(1) + '%';
+  mdEl1.style.color = 'var(--red)';
+  if (r1.maxDiscountDate) {
+    document.getElementById('statMaxDiscountDate').textContent = r1.maxDiscountDate.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+  }
   document.getElementById('statsRow').classList.add('visible');
 
   // Stats row 2
   if (comparing) {
-    document.getElementById('label2').style.display = 'block';
-    document.getElementById('labelTicker2').textContent = ticker2;
+    document.getElementById('statsTickerBig2').textContent = ticker2;
+    document.getElementById('statsInner2').classList.add('visible');
     document.getElementById('statCagr2').textContent = (r2.cagr >= 0 ? '+' : '') + (r2.cagr*100).toFixed(2) + '%';
-    document.getElementById('statCagr2').style.color = r2.cagr >= 0 ? '#e8ff47' : 'var(--red)';
+    document.getElementById('statCagr2').style.color = r2.cagr >= 0 ? '#f97316' : 'var(--red)';
     document.getElementById('statR2_2').textContent = r2.r2.toFixed(4);
-    document.getElementById('statTotal2').textContent = (r2.totalReturn >= 0 ? '+' : '') + r2.totalReturn.toFixed(1) + '%';
-    document.getElementById('statPeriod2').textContent = `Over ${r2.years.toFixed(1)} years`;
+
     document.getElementById('statFinal2').textContent = r2.finalVal.toFixed(2);
+    const vt2 = r2.vsTrend;
+    const vtEl2 = document.getElementById('statVsTrend2');
+    vtEl2.textContent = (vt2 >= 0 ? '+' : '') + vt2.toFixed(1) + '%';
+    vtEl2.style.color = vt2 >= 0 ? 'var(--green)' : 'var(--red)';
+    const latestPrice2 = (r2.norm[r2.norm.length-1].value * data2[0].price).toFixed(2);
+    const trendPrice2 = (r2.trend[r2.trend.length-1] * data2[0].price).toFixed(2);
+    document.getElementById('statVsTrendSub2').innerHTML = `Price&nbsp;&nbsp;<span style="color:#f97316">$${latestPrice2}</span><br>Trend&nbsp;&nbsp;&nbsp;<span style="color:var(--accent2)">$${trendPrice2}</span>`;
+    const md2 = r2.maxDiscount;
+    const mdEl2 = document.getElementById('statMaxDiscount2');
+    mdEl2.textContent = md2.toFixed(1) + '%';
+    mdEl2.style.color = 'var(--red)';
+    if (r2.maxDiscountDate) {
+      document.getElementById('statMaxDiscountDate2').textContent = r2.maxDiscountDate.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+    }
     document.getElementById('statsRow2').classList.add('visible');
   } else {
     document.getElementById('statsRow2').classList.remove('visible');
+    document.getElementById('statsInner2').classList.remove('visible');
   }
 
   document.getElementById('r2note').classList.add('visible');
@@ -461,55 +695,60 @@ function linearRegression(x, y) {
 }
 
 function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, trend2) {
-  const labels = norm1.map(d => d.date.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}));
-  const isPositive = cagr >= 0;
-  const lineColor = isPositive ? '#3dffa0' : '#ff5c5c';
+   const NAVY = '#1e3a6e';
+   const DARK_RED = '#8b1a1a';
 
-  if (myChart) { myChart.destroy(); myChart = null; }
-  const canvas = document.getElementById('myChart');
-  canvas.style.display = 'block';
-  const ctx = canvas.getContext('2d');
+   if (myChart) { myChart.destroy(); myChart = null; }
+   const canvas = document.getElementById('myChart');
+   canvas.style.display = 'block';
+   const ctx = canvas.getContext('2d');
 
-  const grad1 = ctx.createLinearGradient(0, 0, 0, 570);
-  grad1.addColorStop(0, isPositive ? 'rgba(61,255,160,0.15)' : 'rgba(255,92,92,0.15)');
-  grad1.addColorStop(1, 'rgba(0,0,0,0)');
+   const toXY = (norm) => norm.map(d => ({ x: d.date, y: d.value }));
+   const toXYTrend = (norm, trend) => norm.map((d, i) => ({ x: d.date, y: trend[i] }));
 
-  const datasets = [
-    { label: ticker, data: norm1.map(d => d.value), borderColor: lineColor, backgroundColor: grad1, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0, order: 1 },
-    { label: `${ticker} Trend`, data: trend1, borderColor: 'rgba(71,198,255,0.7)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2 }
-  ];
+   const grad1 = ctx.createLinearGradient(0, 0, 0, 570);
+   grad1.addColorStop(0, 'rgba(30,58,110,0.12)');
+   grad1.addColorStop(1, 'rgba(30,58,110,0)');
 
-  if (ticker2 && norm2) {
-    const grad2 = ctx.createLinearGradient(0, 0, 0, 570);
-    grad2.addColorStop(0, 'rgba(232,255,71,0.08)');
-    grad2.addColorStop(1, 'rgba(0,0,0,0)');
-    datasets.push({ label: ticker2, data: norm2.map(d => d.value), borderColor: '#e8ff47', backgroundColor: grad2, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, order: 3 });
-    if (trend2) datasets.push({ label: `${ticker2} Trend`, data: trend2, borderColor: 'rgba(232,255,71,0.5)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 4 });
-  }
+   const datasets = [
+     { label: ticker, data: toXY(norm1), borderColor: NAVY, backgroundColor: grad1, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0, order: 1, showLine: true },
+     { label: `${ticker} Trend`, data: toXYTrend(norm1, trend1), borderColor: 'rgba(30,58,110,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true }
+   ];
+
+   if (ticker2 && norm2) {
+     const grad2 = ctx.createLinearGradient(0, 0, 0, 570);
+     grad2.addColorStop(0, 'rgba(139,26,26,0.08)');
+     grad2.addColorStop(1, 'rgba(139,26,26,0)');
+     datasets.push({ label: ticker2, data: toXY(norm2), borderColor: DARK_RED, backgroundColor: grad2, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, order: 3, showLine: true });
+     if (trend2) datasets.push({ label: `${ticker2} Trend`, data: toXYTrend(norm2, trend2), borderColor: 'rgba(139,26,26,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
+   }
 
   myChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
+    type: 'scatter',
+    data: { datasets },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: '#5a5a7a', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
+        legend: { display: true, labels: { color: '#374151', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
         tooltip: {
-          backgroundColor: '#11111a', borderColor: '#1e1e2e', borderWidth: 1,
-          titleColor: '#5a5a7a', bodyColor: '#e8e8f0',
+          backgroundColor: '#ffffff', borderColor: '#dcdce8', borderWidth: 1,
+          titleColor: '#6b7280', bodyColor: '#0a0a0f',
           titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 13 }, padding: 14,
-          callbacks: { label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}` }
+          callbacks: {
+            label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
+            title: items => items[0]?.raw?.x ? new Date(items[0].raw.x).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : ''
+          }
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { color: '#5a5a7a', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 } },
+        x: { type: 'time', time: { unit: 'year', tooltipFormat: 'MMM d, yyyy' }, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 } },
         y: {
           type: 'logarithmic', min: yMin, max: yMax,
-          grid: { color: 'rgba(255,255,255,0.05)' },
+          grid: { color: 'rgba(0,0,0,0.08)' },
           ticks: {
-            color: '#5a5a7a', font: { family: 'DM Mono', size: 10 },
+            color: '#6b7280', font: { family: 'DM Mono', size: 10 },
             minTicksLimit: 8, maxTicksLimit: 16,
             callback: v => {
               const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000];
@@ -521,6 +760,104 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
       }
     }
   });
+}
+
+async function showStatus() {
+  clearError();
+  const ticker = document.getElementById('ticker').value.trim().toUpperCase();
+  if (!ticker) return showError('Please enter a ticker symbol first.');
+
+  document.getElementById('myChart').style.display = 'none';
+  document.getElementById('statsRow').classList.remove('visible');
+  document.getElementById('statsRow2').classList.remove('visible');
+  document.getElementById('statsInner1').classList.remove('visible');
+  document.getElementById('statsInner2').classList.remove('visible');
+  document.getElementById('statsRowRatio').style.display = 'none';
+  document.getElementById('r2note').classList.remove('visible');
+  document.getElementById('bestResult').classList.remove('visible');
+  setLoading(true, true);
+
+  try {
+    const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
+
+    // Step 1: Find best trend window (same logic as findBestTrend)
+    document.getElementById('loaderText').textContent = 'Finding best trend window...';
+    const weeklyData = await fetchRawData(ticker, -315619200, endTs, '1wk');
+    const monthlyMap = new Map();
+    for (const d of weeklyData) {
+      const key = `${d.date.getFullYear()}-${d.date.getMonth()}`;
+      if (!monthlyMap.has(key)) monthlyMap.set(key, d);
+    }
+    // Stitch price series: normalize each point as cumulative return
+    // This eliminates scale mismatches between chunks completely
+    const allDataRaw = Array.from(monthlyMap.values()).sort((a, b) => a.date - b.date);
+    // Build a clean return series: detect jumps and rescale
+    const stitched = [{ date: allDataRaw[0].date, price: 1.0 }];
+    for (let i = 1; i < allDataRaw.length; i++) {
+      const prev = allDataRaw[i-1].price;
+      const curr = allDataRaw[i].price;
+      if (!prev || !curr || prev <= 0 || curr <= 0 || isNaN(prev) || isNaN(curr)) continue;
+      const ratio = curr / prev;
+      // Skip obvious data artifacts (>50% jump or drop in one month)
+      if (ratio > 1.5 || ratio < 0.5) continue;
+      stitched.push({ date: allDataRaw[i].date, price: stitched[stitched.length-1].price * ratio });
+    }
+    const allData = stitched;
+    if (allData.length < 12) throw new Error('Not enough historical data.');
+
+    let bestR2 = -Infinity, bestIdx = 0;
+    for (let i = 0; i <= allData.length - 2; i++) {
+      const slice = allData.slice(i);
+      if (slice.length < 3) continue;
+      if (slice.some(d => !d.price || d.price <= 0 || isNaN(d.price))) continue;
+      const x = slice.map((_,j) => j);
+      const y = slice.map(d => Math.log(d.price));
+      if (y.every(v => v === y[0])) continue;
+      const r2 = computeR2(x, y);
+      if (isNaN(r2)) continue;
+      if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
+    }
+
+
+    const bestStart = allData[bestIdx].date;
+    const bestEnd = allData[allData.length-1].date;
+    bestTrendStart = bestStart.toISOString().split('T')[0];
+    bestTrendEnd = bestEnd.toISOString().split('T')[0];
+    document.getElementById('startDate').value = bestTrendStart;
+    document.getElementById('endDate').value = bestTrendEnd;
+
+    // Step 2: Fetch both ticker and VFINX for the best trend window
+    document.getElementById('loaderText').textContent = `Comparing ${ticker} vs VFINX...`;
+    const startTs = Math.floor(bestStart.getTime() / 1000);
+    const days = (bestEnd - bestStart) / 86400000;
+    const interval = days <= 1500 ? '1d' : '1wk';
+
+    const [data1, data2] = await Promise.all([
+      fetchRawData(ticker, startTs, endTs, interval),
+      fetchRawData('VFINX', startTs, endTs, interval)
+    ]);
+    if (data1.length < 2) throw new Error(`Not enough data for ${ticker}.`);
+    if (data2.length < 2) throw new Error('Not enough data for VFINX.');
+
+    // Align both datasets to start from VFINX's first available date
+    const vfinxStart = data2[0].date;
+    const data1Aligned = data1.filter(d => d.date >= vfinxStart);
+    const data2Aligned = data2;
+    if (data1Aligned.length < 2) throw new Error(`No ${ticker} data available from VFINX start date.`);
+
+    document.getElementById('ticker2').value = 'VFINX';
+
+    const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
+    const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
+    document.getElementById('btrText').innerHTML =
+      `Best window: <strong>${fmt(bestStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; R&sup2; = <strong>${bestR2.toFixed(4)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
+    document.getElementById('bestResult').classList.add('visible');
+
+    processAndRender(ticker, data1Aligned, 'VFINX', data2Aligned);
+  } catch(e) {
+    setLoading(false);
+    showError(e.message || 'Something went wrong. Please try again.');
+  }
 }
 
 document.getElementById('ticker').addEventListener('keydown', e => { if (e.key === 'Enter') fetchData(); });

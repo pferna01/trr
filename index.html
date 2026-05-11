@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Pablo's Finance Project</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -11,7 +11,7 @@
   :root {
     --bg: #ffffff; --surface: #f4f4f6; --border: #dcdce8;
     --accent: #f97316; --accent2: #0ea5e9; --text: #0a0a0f;
-    --muted: #6b7280; --green: #16a34a; --red: #dc2626; --purple: #1a6b3c;
+    --muted: #0a0a0f; --green: #16a34a; --red: #dc2626; --purple: #1a6b3c;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
@@ -21,12 +21,18 @@
   .logo span { color: var(--purple); opacity: 1; }
   .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding-bottom: 6px; }
   main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; }
-  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto auto auto; gap: 16px; margin-bottom: 32px; align-items: end; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 16px; margin-bottom: 32px; align-items: end; }
+  /* Button row: always keep the 3 buttons as a single flex group */
+  .btn-group { display: flex; gap: 10px; align-items: flex-end; }
+  .btn-group .field { flex: 1; }
+  .btn-group .btn,
+  .btn-group .btn-trend,
+  .btn-group .btn-status { width: 100%; }
   .field { display: flex; flex-direction: column; gap: 8px; }
   label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
   input { background: var(--surface); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 16px; padding: 14px 18px; border-radius: 4px; outline: none; transition: border-color 0.2s; width: 100%; }
   input:focus { border-color: var(--purple); box-shadow: 0 0 0 2px rgba(26,107,60,0.1); }
-  input::placeholder { color: var(--muted); }
+  input::placeholder { color: #9ca3af; }
   .btn { background: #0a0a0f; color: #ffffff; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 36px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
   .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
   .btn:active { transform: translateY(0); }
@@ -43,7 +49,7 @@
   .best-result strong { color: var(--text); }
   .btr-label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; opacity: 0.7; margin-bottom: 6px; }
   .stats-section-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; display: none; }
-  .stats-with-ticker { display: none; align-items: center; gap: 16px; margin-bottom: 12px; }
+  .stats-with-ticker { display: none; align-items: center; gap: 16px; margin-bottom: 12px; margin-top: 4px; }
   .stats-with-ticker.visible { display: flex; }
   .stats-ticker-label { font-family: 'Bebas Neue', sans-serif; font-size: 52px; color: var(--text); line-height: 1; min-width: 80px; text-align: center; }
   .stats-ticker-label.t2 { color: #8b1a1a; }
@@ -77,30 +83,102 @@
   .error-msg.visible { display: block; }
   .r2-note { margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 16px 20px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--border); display: none; }
   .r2-note.visible { display: block; }
+  /* ── Large desktop (1400px+): give the chart more room ── */
+  @media (min-width: 1400px) {
+    main { padding: 48px 64px; }
+    .chart-wrap { height: 720px; }
+    .stat-value { font-size: 48px; }
+    .stats-ticker-label { font-size: 60px; min-width: 96px; }
+  }
+
+  /* ── Tablet (900px – 1199px): tighten controls, 3-col stats ── */
+  @media (max-width: 1199px) and (min-width: 901px) {
+    main { padding: 28px 32px; }
+    .controls { grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+    .controls .btn-group { grid-column: span 4; }
+    .btn-group { gap: 10px; }
+    .btn, .btn-trend, .btn-status { font-size: 18px; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); }
+    .chart-wrap { height: 480px; }
+  }
+
+  /* ── Small tablet / large phone (600px – 900px) ── */
   @media (max-width: 900px) {
-    header { padding: 20px 16px 16px; }
-    .logo { font-size: 30px; }
+    header { padding: 20px 20px 16px; }
+    .logo { font-size: 32px; }
     .tagline { display: none; }
-    main { padding: 16px; }
-    .controls { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-    .controls .field:nth-child(1), .controls .field:nth-child(2) { grid-column: span 1; }
-    .controls .field:nth-child(3), .controls .field:nth-child(4) { grid-column: span 1; }
-    .controls .field:nth-child(5), .controls .field:nth-child(6) { grid-column: span 1; }
-    input { font-size: 14px; padding: 10px 12px; }
-    .btn, .btn-trend { font-size: 16px; padding: 10px 16px; }
-    .stats, .stats2 { grid-template-columns: 1fr 1fr; gap: 10px; }
-    .stat-value { font-size: 28px; }
-    .chart-wrap { height: 320px; padding: 12px; }
+    main { padding: 16px 20px; }
+
+    .controls { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+    .controls .btn-group { grid-column: span 2; }
+    .btn, .btn-trend, .btn-status { font-size: 16px; padding: 12px 8px; }
+    input { font-size: 15px; padding: 11px 13px; }
+
+    /* Ticker label above cards instead of beside them */
+    .stats-with-ticker { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .stats-ticker-label { font-size: 36px; min-width: unset; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .stat-card { padding: 14px 11px; }
+    .stat-value { font-size: 26px; }
+    .stat-sub { font-size: 10px; }
+    .stat-sub-prices { font-size: 11px; }
+
+    .chart-wrap { height: 340px; padding: 14px; }
     .r2-note { font-size: 10px; }
   }
 
-  @media (max-width: 480px) {
-    .controls { grid-template-columns: 1fr 1fr; }
-    .stats, .stats2 { grid-template-columns: 1fr 1fr; }
-    .chart-wrap { height: 280px; padding: 8px; }
-    .stat-label { font-size: 9px; }
-    .stat-value { font-size: 24px; }
-    .stat-sub, .stat-sub-prices { font-size: 10px; }
+  /* ── Phone (≤ 600px) — tuned for iPhone 16 Pro (402×874px CSS) ── */
+  @media (max-width: 600px) {
+    header {
+      padding: 14px 16px 12px;
+      padding-top: max(14px, env(safe-area-inset-top, 14px));
+      padding-left: max(16px, env(safe-area-inset-left, 16px));
+      padding-right: max(16px, env(safe-area-inset-right, 16px));
+      gap: 8px;
+    }
+    main {
+      padding: 14px 16px;
+      padding-left: max(16px, env(safe-area-inset-left, 16px));
+      padding-right: max(16px, env(safe-area-inset-right, 16px));
+      padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+    }
+    .logo { font-size: 28px; letter-spacing: 1px; }
+
+    .controls { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .controls .btn-group { grid-column: span 2; gap: 8px; }
+    .btn, .btn-trend, .btn-status { font-size: 14px; padding: 13px 4px; min-height: 48px; letter-spacing: 0.5px; }
+    input { font-size: 16px; padding: 11px 12px; min-height: 44px; }
+    label { font-size: 10px; }
+
+    /* Ticker label above cards, compact but fully visible */
+    .stats-with-ticker { flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 8px; }
+    .stats-ticker-label { font-size: 28px; min-width: unset; line-height: 1; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .stat-card { padding: 8px 7px 7px; }
+    .stat-label { font-size: 7.5px; letter-spacing: 0.6px; margin-bottom: 3px; }
+    .stat-value { font-size: 19px; }
+    .stat-sub { font-size: 8px; margin-top: 3px; }
+    .stat-sub-prices { font-size: 8px; margin-top: 3px; line-height: 1.4; }
+
+    #statsRowRatio .stats-inner { grid-template-columns: repeat(3, 1fr); }
+
+    .chart-wrap { height: 310px; padding: 10px; border-radius: 4px; }
+    .best-result { font-size: 12px; padding: 12px 14px; line-height: 1.6; }
+    .r2-note { font-size: 10px; padding: 12px 14px; line-height: 1.6; }
+  }
+
+  /* ── Very small / older phones (≤ 380px) ── */
+  @media (max-width: 380px) {
+    .logo { font-size: 22px; }
+    .controls { gap: 7px; }
+    .stats-ticker-label { font-size: 24px; }
+    .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+    .stat-card { padding: 7px 5px; }
+    .stat-label { font-size: 7px; }
+    .stat-value { font-size: 17px; }
+    .stat-sub, .stat-sub-prices { font-size: 7px; }
+    .chart-wrap { height: 250px; }
+    input { font-size: 16px; }
   }
 </style>
 </head>
@@ -113,16 +191,27 @@
   <div class="controls">
     <div class="field"><label>Ticker 1</label><input type="text" id="ticker" placeholder="AAPL, SPY..." maxlength="10" style="text-transform:uppercase;"></div>
     <div class="field"><label>Ticker 2 (optional)</label><input type="text" id="ticker2" placeholder="Compare to..." maxlength="10" style="text-transform:uppercase;"></div>
-    <div class="field"><label>Start Date</label><input type="text" id="startDate" placeholder="1985-01-01" maxlength="10"></div>
+    <div class="field"><label>Start Date</label><input type="text" id="startDate" placeholder="Leave blank = earliest" maxlength="10"></div>
     <div class="field"><label>End Date</label><input type="text" id="endDate" placeholder="2026-05-08" maxlength="10"></div>
-    <div class="field"><label>&nbsp;</label><button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button></div>
-    <div class="field"><label>&nbsp;</label><button class="btn-trend" id="trendBtn" onclick="findBestTrend()">BEST TREND</button></div>
-    <div class="field"><label>&nbsp;</label><button class="btn-status" onclick="showStatus()">STATUS</button></div>
+    <div class="btn-group">
+      <div class="field"><label>&nbsp;</label><button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button></div>
+      <div class="field"><label>&nbsp;</label><button class="btn-trend" id="trendBtn" onclick="findBestTrend()">BEST TREND</button></div>
+      <div class="field"><label>&nbsp;</label><button class="btn-status" onclick="showStatus()">STATUS</button></div>
+    </div>
   </div>
   <div class="error-msg" id="errorMsg"></div>
   <div class="best-result" id="bestResult">
     <div class="btr-label">&#11041; Best Trend Window Found</div>
     <span id="btrText"></span>
+  </div>
+  <div class="chart-wrap">
+    <div class="loader" id="loader"><div class="spinner" id="spinnerEl"></div><div class="loader-text" id="loaderText">Fetching data...</div></div>
+    <canvas id="myChart" style="display:none;"></canvas>
+  </div>
+  <div class="r2-note" id="r2note">
+    <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
+    <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
+    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -145,28 +234,95 @@
     </div>
   </div>
   <div class="stats-with-ticker" id="statsRowRatio" style="display:none;">
-    <div class="stats-ticker-label" style="font-size:32px;color:#6b7280;">RATIO</div>
-    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr;">
+    <div class="stats-ticker-label" style="font-size:32px;color:#0a0a0f;">RATIO</div>
+    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr 1fr;">
       <div class="stat-card"><div class="stat-label">Min Relative Value</div><div class="stat-value" id="statMinRatio" style="color:var(--red)">&#8212;</div><div class="stat-sub" id="statMinRatioDate">Date of lowest ratio</div></div>
       <div class="stat-card"><div class="stat-label">Current Relative Value</div><div class="stat-value" id="statCurRatio">&#8212;</div><div class="stat-sub">vs historical low</div></div>
+      <div class="stat-card green"><div class="stat-label">Current vs Min</div><div class="stat-value" id="statCurVsMin" style="color:var(--green);font-weight:bold">&#8212;</div><div class="stat-sub">current / min ratio</div></div>
     </div>
-  </div>
-  <div class="chart-wrap">
-    <div class="loader" id="loader"><div class="spinner" id="spinnerEl"></div><div class="loader-text" id="loaderText">Fetching data...</div></div>
-    <canvas id="myChart" style="display:none;"></canvas>
-  </div>
-  <div class="r2-note" id="r2note">
-    <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
-    <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
   </div>
 </main>
 <script>
 let myChart = null;
-let cachedMonthlyData = null;
-let cachedTicker = null;
 let bestTrendStart = null;
 let bestTrendEnd = null;
+
+// ── Persistent cache backed by localStorage ──────────────────────────────────
+// Entries expire after 24 hours so stale prices are never used.
+// CACHE_VERSION bump clears all old entries if the data format ever changes.
+const CACHE_VERSION = 'v1';
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_PREFIX = `pfp_${CACHE_VERSION}_`; // pfp = pablo finance project
+
+const diskCache = {
+  get(ticker) {
+    try {
+      const raw = localStorage.getItem(CACHE_PREFIX + ticker);
+      if (!raw) return null;
+      const { ts, data } = JSON.parse(raw);
+      if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_PREFIX + ticker); return null; }
+      // Rehydrate date strings back to Date objects
+      return data.map(d => ({ ...d, date: new Date(d.date) }));
+    } catch(e) { return null; }
+  },
+  set(ticker, data) {
+    try {
+      const payload = JSON.stringify({ ts: Date.now(), data });
+      localStorage.setItem(CACHE_PREFIX + ticker, payload);
+    } catch(e) {
+      // localStorage full — evict oldest pfp entry and retry once
+      try {
+        const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
+        if (keys.length > 0) {
+          let oldest = keys[0], oldestTs = Infinity;
+          keys.forEach(k => { try { const t = JSON.parse(localStorage.getItem(k)).ts; if (t < oldestTs) { oldestTs = t; oldest = k; } } catch(e) {} });
+          localStorage.removeItem(oldest);
+          localStorage.setItem(CACHE_PREFIX + ticker, JSON.stringify({ ts: Date.now(), data }));
+        }
+      } catch(e) {}
+    }
+  },
+  // In-memory layer on top — avoids repeated JSON.parse within the same session
+  _mem: {},
+  _memFull: {},
+  read(ticker) { return this._mem[ticker] ?? this.get(ticker); },
+  write(ticker, data) { this._mem[ticker] = data; this.set(ticker, data); },
+  // Full-history variants — used exclusively by BEST TREND and STATUS
+  // Keyed with 'full_' prefix so partial ANALYZE fetches never pollute them
+  getFull(ticker) {
+    try {
+      const raw = localStorage.getItem(CACHE_PREFIX + 'full_' + ticker);
+      if (!raw) return null;
+      const { ts, data } = JSON.parse(raw);
+      if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); return null; }
+      return data.map(d => ({ ...d, date: new Date(d.date) }));
+    } catch(e) { return null; }
+  },
+  setFull(ticker, data) {
+    try {
+      localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), data }));
+    } catch(e) {
+      try {
+        const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
+        if (keys.length > 0) {
+          let oldest = keys[0], oldestTs = Infinity;
+          keys.forEach(k => { try { const t = JSON.parse(localStorage.getItem(k)).ts; if (t < oldestTs) { oldestTs = t; oldest = k; } } catch(e) {} });
+          localStorage.removeItem(oldest);
+          localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), data }));
+        }
+      } catch(e) {}
+    }
+  },
+  readFull(ticker) { return this._memFull[ticker] ?? this.getFull(ticker); },
+  writeFull(ticker, data) { this._memFull[ticker] = data; this.setFull(ticker, data); }
+};
+
+// Clear any cache entries from a previous version
+try {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('pfp_') && !k.startsWith(CACHE_PREFIX))
+    .forEach(k => localStorage.removeItem(k));
+} catch(e) {}
 
 const AV_KEYS = [
   'T1CDEDP45N03FTF1','NSLYQQRAXYAHXF0O','MJEHZNFMZTVCYBOV','7MDRE86X2TKMIJ84',
@@ -175,13 +331,10 @@ const AV_KEYS = [
 const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
 const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
 
-// Set default dates
+// Set default dates — start is intentionally blank (will fetch earliest available)
 const today = new Date();
 const yesterday = new Date(today);
 yesterday.setDate(today.getDate() - 1);
-const tenYearsAgo = new Date(today);
-tenYearsAgo.setFullYear(today.getFullYear() - 10);
-document.getElementById('startDate').value = tenYearsAgo.toISOString().split('T')[0];
 document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
 
 function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('visible'); }
@@ -220,9 +373,9 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     const chunkStart = Math.min(maxHistoryTs, startTs);
     const range = endTs - chunkStart;
 
-    // Use 8 chunks — each covers ~8 years for a 66-year history
-    // This keeps each chunk well under Yahoo's 500-point cap even for weekly data
-    const NUM_CHUNKS = 8;
+    // Use 64 chunks — ensures full daily coverage across 66 years of history
+    // (66yrs × 252 trading days ÷ 500-point Yahoo cap requires ~34 chunks minimum)
+    const NUM_CHUNKS = 64;
     const step = Math.floor(range / NUM_CHUNKS);
     const overlap = 86400 * 30; // 30-day overlap to avoid gaps
 
@@ -383,13 +536,16 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
 async function fetchData() {
   clearError();
   document.getElementById('bestResult').classList.remove('visible');
+  const ticker2El = document.getElementById('ticker2');
+  // If ticker2 was auto-populated by STATUS, clear it — ANALYZE is for the primary ticker only
+  if (ticker2El.dataset.setByStatus === 'true') { ticker2El.value = ''; delete ticker2El.dataset.setByStatus; }
   const ticker = document.getElementById('ticker').value.trim().toUpperCase();
-  const ticker2 = document.getElementById('ticker2').value.trim().toUpperCase();
+  const ticker2 = ticker2El.value.trim().toUpperCase();
   const start = document.getElementById('startDate').value.trim();
   const end = document.getElementById('endDate').value.trim();
   if (!ticker) return showError('Please enter a ticker symbol.');
-  if (!start || !end) return showError('Please enter start and end dates (yyyy-mm-dd).');
-  if (new Date(start) >= new Date(end)) return showError('Start date must be before end date.');
+  if (!end) return showError('Please enter an end date (yyyy-mm-dd).');
+  if (start && new Date(start) >= new Date(end)) return showError('Start date must be before end date.');
 
   document.getElementById('myChart').style.display = 'none';
   document.getElementById('statsRow').classList.remove('visible');
@@ -400,21 +556,29 @@ async function fetchData() {
   document.getElementById('r2note').classList.remove('visible');
   setLoading(true, false);
 
-  const days = (new Date(end) - new Date(start)) / 86400000;
-  const weeks = days / 7;
-  // Never use monthly — Yahoo monthly caps at ~1985. Use weekly for all long ranges.
-  const interval = days <= 1500 ? '1d' : '1wk';
-  const intervalLabel = {'1d':'daily','1wk':'weekly','2wk':'bi-weekly','1mo':'monthly'}[interval];
-  document.getElementById('loaderText').textContent = `Fetching ${intervalLabel} data...`;
+  // If no start date, fetch from the earliest possible date and let the data decide
+  const veryEarlyTs = -315619200; // Jan 1 1960
+  const startTs = start ? Math.floor(new Date(start).getTime() / 1000) : veryEarlyTs;
+  const endTs = Math.floor(new Date(end).getTime() / 1000) + 86400;
+
+  // Always fetch daily data — R² calculations require daily granularity
+  document.getElementById('loaderText').textContent = start ? 'Fetching daily data...' : 'Fetching earliest available data...';
 
   try {
-    const startTs = Math.floor(new Date(start).getTime() / 1000);
-    const endTs = Math.floor(new Date(end).getTime() / 1000) + 86400;
-    const fetches = [fetchRawData(ticker, startTs, endTs, interval)];
-    if (ticker2) fetches.push(fetchRawData(ticker2, startTs, endTs, interval));
+    const fetches = [fetchRawData(ticker, startTs, endTs, '1d')];
+    if (ticker2) fetches.push(fetchRawData(ticker2, startTs, endTs, '1d'));
     const [data1, data2] = await Promise.all(fetches);
     if (data1.length < 2) throw new Error('Not enough data points.');
-    cachedTicker = ticker; cachedMonthlyData = null;
+
+    // Populate cache so subsequent BEST TREND / STATUS calls skip the network
+    diskCache.write(ticker, data1);
+    if (ticker2 && data2) diskCache.write(ticker2, data2);
+
+    // Backfill the start date field with the actual first data point
+    if (!start && data1.length > 0) {
+      document.getElementById('startDate').value = data1[0].date.toISOString().split('T')[0];
+    }
+
     processAndRender(ticker, data1, ticker2||null, data2||null);
   } catch(e) {
     setLoading(false);
@@ -427,6 +591,10 @@ async function findBestTrend() {
   document.getElementById('bestResult').classList.remove('visible');
   const ticker = document.getElementById('ticker').value.trim().toUpperCase();
   if (!ticker) return showError('Please enter a ticker symbol first.');
+  // BEST TREND only applies to the primary ticker — clear any auto-set ticker2
+  const ticker2El = document.getElementById('ticker2');
+  ticker2El.value = '';
+  delete ticker2El.dataset.setByStatus;
 
   document.getElementById('myChart').style.display = 'none';
   document.getElementById('statsRow').classList.remove('visible');
@@ -439,73 +607,97 @@ async function findBestTrend() {
 
   try {
     const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
-
-    // Step 1: Fetch full history for scan using weekly data
-    // Yahoo weekly goes much further back than monthly (which caps at ~1984)
-    document.getElementById('loaderText').textContent = 'Scanning history...';
     const veryEarlyTs = -315619200; // Jan 1 1960
 
-    const weeklyData = await fetchRawData(ticker, veryEarlyTs, endTs, '1wk');
-
-    // Build clean price series directly from weekly data — no monthly downsampling
-    const stitched = [{ date: weeklyData[0].date, price: 1.0 }];
-    for (let i = 1; i < weeklyData.length; i++) {
-      const prev = weeklyData[i-1].price;
-      const curr = weeklyData[i].price;
-      if (!prev || !curr || prev <= 0 || curr <= 0 || isNaN(prev) || isNaN(curr)) continue;
-      const ratio = curr / prev;
-      // Skip obvious data artifacts (>30% jump or drop in one week)
-      if (ratio > 1.3 || ratio < 0.7) continue;
-      stitched.push({ date: weeklyData[i].date, price: stitched[stitched.length-1].price * ratio });
+    // Use cache if available for this ticker — skip the full network fetch
+    let rawDaily = diskCache.readFull(ticker);
+    if (rawDaily) {
+      document.getElementById('loaderText').textContent = 'Loading from cache...';
+    } else {
+      document.getElementById('loaderText').textContent = 'Fetching daily history...';
+      rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
+      diskCache.writeFull(ticker, rawDaily);
     }
-    cachedMonthlyData = allData;
-    cachedTicker = ticker;
-    if (allData.length < 12) throw new Error('Not enough historical data.');
 
-    // Scan all windows using normalized R² — matches processAndRender formula exactly
+    // Scan all windows — require at least 252 daily points (~1 trading year)
+    const MIN_SCAN_POINTS = 21; // ~1 month — allows recent IPOs while preventing nonsensical micro-windows
+
+    // Filter rawDaily to valid prices only (same as processAndRender receives)
+    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
+    if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
+
+    // O(n) scan: precompute suffix sums so each window [i..N-1] is O(1)
+    // All windows end at yesterday (index N-1). x = j-i, y = logP[j] - logP[i].
+    // We need: n, sumX, sumX2, sumY, sumXY, sumY2 for each i.
+    // sumX and sumX2 are closed-form in n.
+    // sumY, sumXY, sumY2 depend on i — precompute suffix arrays.
     document.getElementById('loaderText').textContent = 'Scanning all windows...';
+    const N = validDaily.length;
+    const logP = new Float64Array(N);
+    for (let k = 0; k < N; k++) logP[k] = Math.log(validDaily[k].price);
+
+    // Suffix sums (sfA[i] = sum of logP[k] for k=i..N-1, etc.)
+    const sfY  = new Float64Array(N + 1); // suffix sum of logP[k]
+    const sfKY = new Float64Array(N + 1); // suffix sum of k*logP[k]
+    const sfY2 = new Float64Array(N + 1); // suffix sum of logP[k]^2
+    for (let k = N - 1; k >= 0; k--) {
+      sfY[k]  = sfY[k+1]  + logP[k];
+      sfKY[k] = sfKY[k+1] + k * logP[k];
+      sfY2[k] = sfY2[k+1] + logP[k] * logP[k];
+    }
+
     let bestR2 = -Infinity, bestIdx = 0;
-    for (let i = 0; i <= allData.length - 2; i++) {
-      const slice = allData.slice(i);
-      if (slice.length < 3) continue;
-      if (slice.some(d => !d.price || d.price <= 0 || isNaN(d.price))) continue;
-      const sp = slice[0].price;
-      const norm = slice.map(d => ({ value: d.price / sp }));
-      const x = norm.map((_, j) => j);
-      const y = norm.map(d => Math.log(d.value));
-      if (y.every(v => v === y[0])) continue;
-      const r2 = computeR2(x, y);
+
+    for (let i = 0; i <= N - MIN_SCAN_POINTS; i++) {
+      const n    = N - i;
+      const base = logP[i];
+
+      // x = j - i, y = logP[j] - base
+      // sumY  = sum(logP[j]-base)         = sfY[i]  - n*base
+      // sumXY = sum((j-i)*(logP[j]-base)) = sfKY[i] - i*sfY[i] - base*(n*(n-1)/2)
+      // sumY2 = sum((logP[j]-base)^2)     = sfY2[i] - 2*base*sfY[i] + n*base^2
+      const sumX  = n * (n - 1) / 2;
+      const sumX2 = n * (n - 1) * (2 * n - 1) / 6;
+      const sumY  = sfY[i]  - n * base;
+      const sumXY = sfKY[i] - i * sfY[i] - base * sumX;
+      const sumY2 = sfY2[i] - 2 * base * sfY[i] + n * base * base;
+
+      const denom = n * sumX2 - sumX * sumX;
+      if (denom === 0) continue;
+
+      const slope     = (n * sumXY - sumX * sumY) / denom;
+      const intercept = (sumY - slope * sumX) / n;
+      const yMean     = sumY / n;
+      const ssTot     = sumY2 - n * yMean * yMean;
+      const ssRes     = sumY2 - intercept * sumY - slope * sumXY;
+
+      if (ssTot <= 0) continue;
+      const r2 = 1 - ssRes / ssTot;
       if (isNaN(r2)) continue;
       if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
     }
-
-
-    const bestStart = allData[bestIdx].date;
-    const bestEnd = new Date(yesterday); // always use yesterday as end date
+    const bestStart = validDaily[bestIdx].date;
+    const bestEnd = new Date(yesterday);
     const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
-
-
-    const startTs = Math.floor(bestStart.getTime() / 1000);
-    let chartData = allData.filter(d => d.date >= allData[bestIdx].date);
-    if (chartData.length > 1500) {
-      const nth = Math.ceil(chartData.length / 1500);
-      chartData = chartData.filter((_, i) => i % nth === 0);
-      if (chartData[chartData.length-1] !== allData[allData.length-1]) {
-        chartData.push(allData[allData.length-1]);
-      }
-    }
 
     bestTrendStart = bestStart.toISOString().split('T')[0];
     bestTrendEnd = bestEnd.toISOString().split('T')[0];
     document.getElementById('startDate').value = bestTrendStart;
     document.getElementById('endDate').value = bestTrendEnd;
 
+    // Slice the best window directly from the already-fetched raw daily data
+    // Use timestamp comparison to avoid Date object reference equality issues
+    const bestStartTs = bestStart.getTime();
+    const dailyData = rawDaily.filter(d => d.date.getTime() >= bestStartTs);
+    if (dailyData.length < 2) throw new Error('Not enough daily data for best window.');
+
     const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
     document.getElementById('btrText').innerHTML =
       `Best window: <strong>${fmt(bestStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
     document.getElementById('bestResult').classList.add('visible');
 
-    processAndRender(ticker, chartData, null, null);
+    document.getElementById('ticker2').value = '';
+    processAndRender(ticker, dailyData, null, null);
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');
@@ -567,7 +759,11 @@ function processAndRender(ticker, data1, ticker2, data2) {
   const allVals = [...r1.norm.map(d => d.value), ...(r2 ? r2.norm.map(d => d.value) : []),
     ...r1.trend, ...(r2 ? r2.trend : [])];
   const yMin = Math.min(...allVals) * 0.85;
-  const yMax = Math.max(...allVals) * 1.15;
+  const rawMax = Math.max(...allVals);
+  // Snap yMax up to the next clean step so there's always a tick above the highest point
+  const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000];
+  const nextStep = steps.find(s => s > rawMax * 1.05);
+  const yMax = nextStep !== undefined ? nextStep : rawMax * 1.25;
 
   // Compute (stock_price * VFINX_trend) / (VFINX_price * stock_trend) ratio
   const ratioRow = document.getElementById('statsRowRatio');
@@ -595,6 +791,13 @@ function processAndRender(ticker, data1, ticker2, data2) {
       const curEl = document.getElementById('statCurRatio');
       curEl.textContent = curRatio ? curRatio.toFixed(4) : '—';
       curEl.style.color = curRatio && curRatio <= minRatio * 1.1 ? 'var(--red)' : 'var(--green)';
+      const curVsMinEl = document.getElementById('statCurVsMin');
+      if (curRatio && minRatio && minRatio > 0) {
+        const pct = (curRatio / minRatio - 1) * 100;
+        curVsMinEl.textContent = pct.toFixed(1) + '%';
+      } else {
+        curVsMinEl.textContent = '—';
+      }
       ratioRow.style.display = 'flex';
       document.getElementById('statsInnerRatio').style.opacity = '1';
     }
@@ -610,7 +813,7 @@ function processAndRender(ticker, data1, ticker2, data2) {
   document.getElementById('statsInner1').classList.add('visible');
   document.getElementById('statCagr').textContent = (r1.cagr >= 0 ? '+' : '') + (r1.cagr*100).toFixed(2) + '%';
   document.getElementById('statCagr').style.color = r1.cagr >= 0 ? 'var(--green)' : 'var(--red)';
-  document.getElementById('statR2').textContent = r1.r2.toFixed(4);
+  document.getElementById('statR2').textContent = r1.r2.toFixed(5);
 
   document.getElementById('statFinal').textContent = r1.finalVal.toFixed(2);
   const vt1 = r1.vsTrend;
@@ -635,7 +838,7 @@ function processAndRender(ticker, data1, ticker2, data2) {
     document.getElementById('statsInner2').classList.add('visible');
     document.getElementById('statCagr2').textContent = (r2.cagr >= 0 ? '+' : '') + (r2.cagr*100).toFixed(2) + '%';
     document.getElementById('statCagr2').style.color = r2.cagr >= 0 ? '#f97316' : 'var(--red)';
-    document.getElementById('statR2_2').textContent = r2.r2.toFixed(4);
+    document.getElementById('statR2_2').textContent = r2.r2.toFixed(5);
 
     document.getElementById('statFinal2').textContent = r2.finalVal.toFixed(2);
     const vt2 = r2.vsTrend;
@@ -721,10 +924,10 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: '#374151', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
+        legend: { display: true, labels: { color: '#0a0a0f', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
         tooltip: {
           backgroundColor: '#ffffff', borderColor: '#dcdce8', borderWidth: 1,
-          titleColor: '#6b7280', bodyColor: '#0a0a0f',
+          titleColor: '#0a0a0f', bodyColor: '#0a0a0f',
           titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 13 }, padding: 14,
           callbacks: {
             label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
@@ -733,12 +936,12 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
         }
       },
       scales: {
-        x: { type: 'time', time: { unit: 'year', tooltipFormat: 'MMM d, yyyy' }, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#6b7280', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 } },
+        x: { type: 'time', time: { unit: 'year', tooltipFormat: 'MMM d, yyyy' }, grid: { color: 'rgba(0,0,0,0.08)' }, ticks: { color: '#0a0a0f', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 0 } },
         y: {
           type: 'logarithmic', min: yMin, max: yMax,
           grid: { color: 'rgba(0,0,0,0.08)' },
           ticks: {
-            color: '#6b7280', font: { family: 'DM Mono', size: 10 },
+            color: '#0a0a0f', font: { family: 'DM Mono', size: 10 },
             minTicksLimit: 8, maxTicksLimit: 16,
             callback: v => {
               const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000];
@@ -769,75 +972,103 @@ async function showStatus() {
 
   try {
     const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
+    const veryEarlyTs = -315619200;
 
-    // Step 1: Find best trend window (same logic as findBestTrend)
-    document.getElementById('loaderText').textContent = 'Finding best trend window...';
-    const weeklyData = await fetchRawData(ticker, -315619200, endTs, '1wk');
-    // Build clean price series directly from weekly data
-    const stitched = [{ date: weeklyData[0].date, price: 1.0 }];
-    for (let i = 1; i < weeklyData.length; i++) {
-      const prev = weeklyData[i-1].price;
-      const curr = weeklyData[i].price;
-      if (!prev || !curr || prev <= 0 || curr <= 0 || isNaN(prev) || isNaN(curr)) continue;
-      const ratio = curr / prev;
-      if (ratio > 1.3 || ratio < 0.7) continue;
-      stitched.push({ date: weeklyData[i].date, price: stitched[stitched.length-1].price * ratio });
+    // Use cache if available — skip full network fetch for both ticker and VFINX
+    let rawDaily = diskCache.readFull(ticker);
+    if (rawDaily) {
+      document.getElementById('loaderText').textContent = 'Loading from cache...';
+    } else {
+      document.getElementById('loaderText').textContent = 'Fetching daily history...';
+      rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
+      diskCache.writeFull(ticker, rawDaily);
     }
-    const allData = stitched;
-    if (allData.length < 12) throw new Error('Not enough historical data.');
-    if (allData.length < 12) throw new Error('Not enough historical data.');
+
+    let rawVfinx = diskCache.readFull('VFINX');
+    if (!rawVfinx) {
+      document.getElementById('loaderText').textContent = 'Fetching VFINX history...';
+      rawVfinx = await fetchRawData('VFINX', veryEarlyTs, endTs, '1d');
+      diskCache.writeFull('VFINX', rawVfinx);
+    }
+
+    // Filter rawDaily to valid prices — same dataset processAndRender uses
+    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
+    const MIN_SCAN_POINTS = 21;
+    if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
+
+    // O(n) scan using suffix sums
+    document.getElementById('loaderText').textContent = 'Scanning all windows...';
+    const N = validDaily.length;
+    const logP = new Float64Array(N);
+    for (let k = 0; k < N; k++) logP[k] = Math.log(validDaily[k].price);
+
+    const sfY  = new Float64Array(N + 1);
+    const sfKY = new Float64Array(N + 1);
+    const sfY2 = new Float64Array(N + 1);
+    for (let k = N - 1; k >= 0; k--) {
+      sfY[k]  = sfY[k+1]  + logP[k];
+      sfKY[k] = sfKY[k+1] + k * logP[k];
+      sfY2[k] = sfY2[k+1] + logP[k] * logP[k];
+    }
 
     let bestR2 = -Infinity, bestIdx = 0;
-    for (let i = 0; i <= allData.length - 2; i++) {
-      const slice = allData.slice(i);
-      if (slice.length < 3) continue;
-      if (slice.some(d => !d.price || d.price <= 0 || isNaN(d.price))) continue;
-      const sp = slice[0].price;
-      const norm = slice.map(d => ({ value: d.price / sp }));
-      const x = norm.map((_, j) => j);
-      const y = norm.map(d => Math.log(d.value));
-      if (y.every(v => v === y[0])) continue;
-      const r2 = computeR2(x, y);
+
+    for (let i = 0; i <= N - MIN_SCAN_POINTS; i++) {
+      const n    = N - i;
+      const base = logP[i];
+      const sumX  = n * (n - 1) / 2;
+      const sumX2 = n * (n - 1) * (2 * n - 1) / 6;
+      const sumY  = sfY[i]  - n * base;
+      const sumXY = sfKY[i] - i * sfY[i] - base * sumX;
+      const sumY2 = sfY2[i] - 2 * base * sfY[i] + n * base * base;
+
+      const denom = n * sumX2 - sumX * sumX;
+      if (denom === 0) continue;
+
+      const slope     = (n * sumXY - sumX * sumY) / denom;
+      const intercept = (sumY - slope * sumX) / n;
+      const yMean     = sumY / n;
+      const ssTot     = sumY2 - n * yMean * yMean;
+      const ssRes     = sumY2 - intercept * sumY - slope * sumXY;
+
+      if (ssTot <= 0) continue;
+      const r2 = 1 - ssRes / ssTot;
       if (isNaN(r2)) continue;
       if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
     }
 
+    const bestStart = validDaily[bestIdx].date;
+    const bestEnd = new Date(yesterday);
 
-    const bestStart = allData[bestIdx].date;
-    const bestEnd = new Date(yesterday); // always use yesterday as end date
-    bestTrendStart = bestStart.toISOString().split('T')[0];
+    // Slice both series — use timestamp comparison to avoid Date object reference issues
+    const bestStartTs = bestStart.getTime();
+    const data1 = rawDaily.filter(d => d.date.getTime() >= bestStartTs);
+    const data2 = rawVfinx.filter(d => d.date.getTime() >= bestStartTs);
+    if (data1.length < 2) throw new Error(`Not enough data for ${ticker}.`);
+    if (data2.length < 2) throw new Error('Not enough data for VFINX.');
+
+    // Align both to VFINX's first available date
+    const vfinxStart = data2[0].date;
+    const data1Aligned = data1.filter(d => d.date.getTime() >= vfinxStart.getTime());
+    if (data1Aligned.length < 2) throw new Error(`No ${ticker} data available from VFINX start date.`);
+
+    // Use the effective start (after VFINX alignment) for the banner so it matches the chart
+    const effectiveStart = data1Aligned[0].date;
+    bestTrendStart = effectiveStart.toISOString().split('T')[0];
     bestTrendEnd = bestEnd.toISOString().split('T')[0];
     document.getElementById('startDate').value = bestTrendStart;
     document.getElementById('endDate').value = bestTrendEnd;
 
-    // Step 2: Fetch both ticker and VFINX for the best trend window
-    document.getElementById('loaderText').textContent = `Comparing ${ticker} vs VFINX...`;
-    const startTs = Math.floor(bestStart.getTime() / 1000);
-    const days = (bestEnd - bestStart) / 86400000;
-    const interval = days <= 1500 ? '1d' : '1wk';
-
-    const [data1, data2] = await Promise.all([
-      fetchRawData(ticker, startTs, endTs, interval),
-      fetchRawData('VFINX', startTs, endTs, interval)
-    ]);
-    if (data1.length < 2) throw new Error(`Not enough data for ${ticker}.`);
-    if (data2.length < 2) throw new Error('Not enough data for VFINX.');
-
-    // Align both datasets to start from VFINX's first available date
-    const vfinxStart = data2[0].date;
-    const data1Aligned = data1.filter(d => d.date >= vfinxStart);
-    const data2Aligned = data2;
-    if (data1Aligned.length < 2) throw new Error(`No ${ticker} data available from VFINX start date.`);
-
     document.getElementById('ticker2').value = 'VFINX';
+    document.getElementById('ticker2').dataset.setByStatus = 'true';
 
     const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
-    const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
+    const years = (bestEnd - effectiveStart) / (365.25*24*3600*1000);
     document.getElementById('btrText').innerHTML =
-      `Best window: <strong>${fmt(bestStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
+      `Best window: <strong>${fmt(effectiveStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
     document.getElementById('bestResult').classList.add('visible');
 
-    processAndRender(ticker, data1Aligned, 'VFINX', data2Aligned);
+    processAndRender(ticker, data1Aligned, 'VFINX', data2);
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');

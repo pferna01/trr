@@ -81,6 +81,13 @@
   .loader-text { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); letter-spacing: 1px; }
   .error-msg { background: rgba(255,92,92,0.08); border: 1px solid rgba(255,92,92,0.25); border-radius: 4px; padding: 14px 20px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--red); margin-bottom: 24px; display: none; }
   .error-msg.visible { display: block; }
+  .use-end-date-row { margin-top: 10px; grid-column: span 5; }
+  .use-end-date-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.2px; user-select: none; }
+  .use-end-date-label input[type="checkbox"] { accent-color: var(--purple); width: 14px; height: 14px; cursor: pointer; }
+  .use-end-date-label span { opacity: 0.7; transition: opacity 0.15s; }
+  .use-end-date-label:has(input:checked) span { opacity: 1; color: var(--purple); }
+  @media (max-width: 1199px) { .use-end-date-row { grid-column: span 4; } }
+  @media (max-width: 900px) { .use-end-date-row { grid-column: span 2; } }
   .r2-note { margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 16px 20px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--border); display: none; }
   .r2-note.visible { display: block; }
   /* ── Large desktop (1400px+): give the chart more room ── */
@@ -197,6 +204,12 @@
       <div class="field"><label>&nbsp;</label><button class="btn" id="fetchBtn" onclick="fetchData()">ANALYZE</button></div>
       <div class="field"><label>&nbsp;</label><button class="btn-trend" id="trendBtn" onclick="findBestTrend()">BEST TREND</button></div>
       <div class="field"><label>&nbsp;</label><button class="btn-status" onclick="showStatus()">STATUS</button></div>
+    </div>
+    <div class="use-end-date-row">
+      <label class="use-end-date-label">
+        <input type="checkbox" id="useEndDateChk">
+        <span>Use end date for Best Trend &amp; Status</span>
+      </label>
     </div>
   </div>
   <div class="error-msg" id="errorMsg"></div>
@@ -629,7 +642,15 @@ async function findBestTrend() {
   setLoading(true, true);
 
   try {
-    const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
+    const useEndDate = document.getElementById('useEndDateChk').checked;
+    const endDateVal = document.getElementById('endDate').value.trim();
+    let trendEnd = yesterday;
+    if (useEndDate && endDateVal) {
+      const parsed = new Date(endDateVal);
+      if (!isNaN(parsed)) trendEnd = parsed;
+      else return (setLoading(false), showError('Invalid end date.'));
+    }
+    const endTs = Math.floor(trendEnd.getTime() / 1000) + 86400;
     const veryEarlyTs = -315619200; // Jan 1 1960
 
     // Use cache if available for this ticker — skip the full network fetch
@@ -660,7 +681,9 @@ async function findBestTrend() {
     const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
 
     // Filter rawDaily to valid prices only (same as processAndRender receives)
-    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
+    // Also clamp to trendEnd so the scan doesn't include data beyond the selected end date
+    const trendEndTs = trendEnd.getTime();
+    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price) && d.date.getTime() <= trendEndTs);
     if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
 
     // O(n) scan: precompute suffix sums so each window [i..N-1] is O(1)
@@ -714,7 +737,7 @@ async function findBestTrend() {
       if (r2 > bestR2) { bestR2 = r2; bestIdx = i; }
     }
     const bestStart = validDaily[bestIdx].date;
-    const bestEnd = new Date(yesterday);
+    const bestEnd = new Date(trendEnd);
     const years = (bestEnd - bestStart) / (365.25*24*3600*1000);
 
     bestTrendStart = bestStart.toISOString().split('T')[0];
@@ -725,7 +748,7 @@ async function findBestTrend() {
     // Slice the best window directly from the already-fetched raw daily data
     // Use timestamp comparison to avoid Date object reference equality issues
     const bestStartTs = bestStart.getTime();
-    const dailyData = rawDaily.filter(d => d.date.getTime() >= bestStartTs);
+    const dailyData = rawDaily.filter(d => d.date.getTime() >= bestStartTs && d.date.getTime() <= trendEndTs);
     if (dailyData.length < 2) throw new Error('Not enough daily data for best window.');
 
     const fmt = d => d.toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'});
@@ -1061,7 +1084,15 @@ async function showStatus() {
   setLoading(true, true);
 
   try {
-    const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
+    const useEndDate = document.getElementById('useEndDateChk').checked;
+    const endDateVal = document.getElementById('endDate').value.trim();
+    let trendEnd = yesterday;
+    if (useEndDate && endDateVal) {
+      const parsed = new Date(endDateVal);
+      if (!isNaN(parsed)) trendEnd = parsed;
+      else return (setLoading(false), showError('Invalid end date.'));
+    }
+    const endTs = Math.floor(trendEnd.getTime() / 1000) + 86400;
     const veryEarlyTs = -315619200;
 
     // Same cache-depth validation as findBestTrend — never trust a cached result
@@ -1103,7 +1134,9 @@ async function showStatus() {
     }
 
     // Filter rawDaily to valid prices — same dataset processAndRender uses
-    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
+    // Clamp to trendEnd so the scan doesn't include data beyond the selected end date
+    const trendEndTs = trendEnd.getTime();
+    const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price) && d.date.getTime() <= trendEndTs);
     const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
     if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
 
@@ -1149,12 +1182,12 @@ async function showStatus() {
     }
 
     const bestStart = validDaily[bestIdx].date;
-    const bestEnd = new Date(yesterday);
+    const bestEnd = new Date(trendEnd);
 
     // Slice both series — use timestamp comparison to avoid Date object reference issues
     const bestStartTs = bestStart.getTime();
-    const data1 = rawDaily.filter(d => d.date.getTime() >= bestStartTs);
-    const data2 = rawVfinx.filter(d => d.date.getTime() >= bestStartTs);
+    const data1 = rawDaily.filter(d => d.date.getTime() >= bestStartTs && d.date.getTime() <= trendEndTs);
+    const data2 = rawVfinx.filter(d => d.date.getTime() >= bestStartTs && d.date.getTime() <= trendEndTs);
     if (data1.length < 2) throw new Error(`Not enough data for ${ticker}.`);
     if (data2.length < 2) throw new Error('Not enough data for VFINX.');
 

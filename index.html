@@ -67,7 +67,7 @@
   .stat-card.green::before { background: var(--green); }
   .stat-card.yellow::before { background: #f97316; }
   .stat-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
-  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 42px; line-height: 1; color: var(--text); }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 56px; line-height: 1; color: var(--text); }
   .stat-card.blue .stat-value { color: var(--accent2); }
   .stat-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 6px; }
   .stat-sub-prices { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); margin-top: 8px; opacity: 0.85; letter-spacing: 0.3px; }
@@ -87,7 +87,7 @@
   @media (min-width: 1400px) {
     main { padding: 48px 64px; }
     .chart-wrap { height: 720px; }
-    .stat-value { font-size: 48px; }
+    .stat-value { font-size: 64px; }
     .stats-ticker-label { font-size: 60px; min-width: 96px; }
   }
 
@@ -119,7 +119,7 @@
     .stats-ticker-label { font-size: 36px; min-width: unset; }
     .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .stat-card { padding: 14px 11px; }
-    .stat-value { font-size: 26px; }
+    .stat-value { font-size: 38px; }
     .stat-sub { font-size: 10px; }
     .stat-sub-prices { font-size: 11px; }
 
@@ -156,7 +156,7 @@
     .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 5px; }
     .stat-card { padding: 8px 7px 7px; }
     .stat-label { font-size: 7.5px; letter-spacing: 0.6px; margin-bottom: 3px; }
-    .stat-value { font-size: 19px; }
+    .stat-value { font-size: 32px; }
     .stat-sub { font-size: 8px; margin-top: 3px; }
     .stat-sub-prices { font-size: 8px; margin-top: 3px; line-height: 1.4; }
 
@@ -175,7 +175,7 @@
     .stats-inner { grid-template-columns: repeat(3, 1fr); gap: 4px; }
     .stat-card { padding: 7px 5px; }
     .stat-label { font-size: 7px; }
-    .stat-value { font-size: 17px; }
+    .stat-value { font-size: 26px; }
     .stat-sub, .stat-sub-prices { font-size: 7px; }
     .chart-wrap { height: 250px; }
     input { font-size: 16px; }
@@ -367,56 +367,66 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   const worker = WORKER;
 
   // True total return with dividend reinvestment
-  // Yahoo caps at 500 points per request — fetch 4 parallel chunks to get full history
+  // Fetches full history in sequential batches of 4 concurrent chunks.
+  // Sequential batching prevents Yahoo rate-limiting that silently drops early
+  // chunks (pre-2008) when all 64 fire at once — the root cause of non-determinism.
   const fetchYahooTotalReturn = async () => {
     const maxHistoryTs = -315619200; // Jan 1 1960
     const chunkStart = Math.min(maxHistoryTs, startTs);
     const range = endTs - chunkStart;
 
-    // Use 64 chunks — ensures full daily coverage across 66 years of history
-    // (66yrs × 252 trading days ÷ 500-point Yahoo cap requires ~34 chunks minimum)
     const NUM_CHUNKS = 64;
+    const BATCH_SIZE = 4;   // concurrent requests per wave — safe under Yahoo rate limits
+    const MAX_CHUNK_RETRIES = 2; // retry each failed chunk before giving up
     const step = Math.floor(range / NUM_CHUNKS);
     const overlap = 86400 * 30; // 30-day overlap to avoid gaps
 
-    // Fetch a single time-range chunk (always same interval for consistent density)
+    // Fetch a single chunk with automatic retry on failure
     const fetchChunk = async (p1, p2, chunkInterval = yahooInterval) => {
-      try {
-        const url = `${yahooBase}?period1=${p1}&period2=${p2}&interval=${chunkInterval}&includeAdjustedClose=true`;
-        const resp = await fetch(worker + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
-        if (!resp.ok) return [];
-        const json = await resp.json();
-        if (!json?.chart?.result?.[0]) return [];
-        const r = json.chart.result[0];
-        const raw = r.indicators?.quote?.[0]?.close;
-        const adj = r.indicators?.adjclose?.[0]?.adjclose;
-        const ts = r.timestamp;
-        if (!ts || ts.length < 1) return [];
-        return ts.map((t, i) => {
-          const rawVal = raw?.[i];
-          const adjVal = (adj?.[i] != null && !isNaN(adj[i])) ? adj[i] : rawVal;
-          const price = adjVal ?? rawVal;
-          return { date: new Date(t * 1000), ts: t * 1000, raw: rawVal ?? price, adj: price };
-        }).filter(d => d.adj != null && !isNaN(d.adj) && d.adj > 0);
-      } catch(e) { return []; }
+      for (let attempt = 0; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+        try {
+          const url = `${yahooBase}?period1=${p1}&period2=${p2}&interval=${chunkInterval}&includeAdjustedClose=true`;
+          const resp = await fetch(worker + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+          if (!resp.ok) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
+          const json = await resp.json();
+          if (!json?.chart?.result?.[0]) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
+          const r = json.chart.result[0];
+          const raw = r.indicators?.quote?.[0]?.close;
+          const adj = r.indicators?.adjclose?.[0]?.adjclose;
+          const ts = r.timestamp;
+          if (!ts || ts.length < 1) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
+          const pts = ts.map((t, i) => {
+            const rawVal = raw?.[i];
+            const adjVal = (adj?.[i] != null && !isNaN(adj[i])) ? adj[i] : rawVal;
+            const price = adjVal ?? rawVal;
+            return { date: new Date(t * 1000), ts: t * 1000, raw: rawVal ?? price, adj: price };
+          }).filter(d => d.adj != null && !isNaN(d.adj) && d.adj > 0);
+          if (pts.length === 0 && attempt < MAX_CHUNK_RETRIES) continue;
+          return pts;
+        } catch(e) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
+      }
+      return [];
     };
 
-    // All chunks use the same yahooInterval for consistent density
     const chunkBoundaries = Array.from({length: NUM_CHUNKS}, (_, i) => {
       const p1 = chunkStart + step * i;
       const p2 = i === NUM_CHUNKS - 1 ? endTs : chunkStart + step * (i + 1) + overlap;
       return [p1, p2, yahooInterval];
     });
 
-    // Fetch dividends separately — use daily interval to capture ALL historical dividends
-    // including pre-1985 which weekly interval misses
+    // Fetch dividends in parallel with the first batch
     const divHistUrl = `${yahooBase}?period1=${maxHistoryTs}&period2=${endTs}&interval=1d&events=div&includeAdjustedClose=true`;
+    const divPromise = fetch(worker + encodeURIComponent(divHistUrl), { signal: AbortSignal.timeout(15000) }).catch(() => null);
 
-    // Fire all chunks + div fetch in parallel
-    const [divResp, ...chunkResults] = await Promise.all([
-      fetch(worker + encodeURIComponent(divHistUrl), { signal: AbortSignal.timeout(15000) }),
-      ...chunkBoundaries.map(([p1, p2, ci]) => fetchChunk(p1, p2, ci))
-    ]);
+    // Sequential batching: fire BATCH_SIZE chunks at a time, wait before next wave
+    const chunkResults = [];
+    for (let b = 0; b < NUM_CHUNKS; b += BATCH_SIZE) {
+      const batch = chunkBoundaries.slice(b, b + BATCH_SIZE);
+      const results = await Promise.all(batch.map(([p1, p2, ci]) => fetchChunk(p1, p2, ci)));
+      chunkResults.push(...results);
+    }
+    const divResp = await divPromise;
+
     console.log('Chunk sizes:', chunkResults.map(c => c.length));
     console.log('Chunk first dates:', chunkResults.map(c => c[0]?.date?.toISOString().split('T')[0] || 'empty'));
 
@@ -454,6 +464,19 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     }
 
     if (pts.length < 2) return null;
+
+    // Validate actual data depth after stitching.
+    // Yahoo sometimes returns chunks that all begin around 2008 regardless of the
+    // requested period1 — the chunks aren't empty, they just silently ignore the
+    // early date range. If the assembled data starts after 2000-01-01 and we
+    // asked for data going back to 1960, reject this result entirely so the caller
+    // falls through to a fallback source rather than caching bad data.
+    const DEEP_HISTORY_CUTOFF = new Date('2000-01-01').getTime();
+    const assembledStart = pts[0].date.getTime();
+    if (startTs < 0 && assembledStart > DEEP_HISTORY_CUTOFF) {
+      console.warn(`Yahoo returned truncated history for ${ticker} — assembled start: ${pts[0].date.toISOString().split('T')[0]}, expected pre-2000. Rejecting.`);
+      return null;
+    }
 
     // Extract dividends
     let dividends = [];
@@ -579,7 +602,7 @@ async function fetchData() {
       document.getElementById('startDate').value = data1[0].date.toISOString().split('T')[0];
     }
 
-    processAndRender(ticker, data1, ticker2||null, data2||null);
+    processAndRender(ticker, data1, ticker2||null, data2||null, new Date(end));
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');
@@ -610,17 +633,31 @@ async function findBestTrend() {
     const veryEarlyTs = -315619200; // Jan 1 1960
 
     // Use cache if available for this ticker — skip the full network fetch
+    // A cached result is only trusted if it starts before 2000-01-01.
+    // If it starts later, it's likely a truncated fetch — bust and re-fetch.
+    const CACHE_DEPTH_CUTOFF = new Date('2000-01-01').getTime();
+    const isCacheDeep = (data) => data && data.length > 0 && data[0].date.getTime() < CACHE_DEPTH_CUTOFF;
+
     let rawDaily = diskCache.readFull(ticker);
-    if (rawDaily) {
+    if (rawDaily && isCacheDeep(rawDaily)) {
       document.getElementById('loaderText').textContent = 'Loading from cache...';
     } else {
+      if (rawDaily && !isCacheDeep(rawDaily)) {
+        console.warn(`Cached data for ${ticker} starts ${rawDaily[0]?.date?.toISOString().split('T')[0]} — too recent, busting cache.`);
+        diskCache._memFull[ticker] = null;
+        try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
+      }
       document.getElementById('loaderText').textContent = 'Fetching daily history...';
       rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
-      diskCache.writeFull(ticker, rawDaily);
+      // Only cache if data reaches back far enough — never cache a truncated result
+      if (isCacheDeep(rawDaily)) {
+        diskCache.writeFull(ticker, rawDaily);
+      } else {
+        console.warn(`Fetch for ${ticker} returned shallow data (starts ${rawDaily[0]?.date?.toISOString().split('T')[0]}) — skipping cache.`);
+      }
     }
 
-    // Scan all windows — require at least 252 daily points (~1 trading year)
-    const MIN_SCAN_POINTS = 21; // ~1 month — allows recent IPOs while preventing nonsensical micro-windows
+    const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
 
     // Filter rawDaily to valid prices only (same as processAndRender receives)
     const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
@@ -704,7 +741,9 @@ async function findBestTrend() {
   }
 }
 
-function processAndRender(ticker, data1, ticker2, data2) {
+function processAndRender(ticker, data1, ticker2, data2, endDate) {
+  // endDate: the actual requested end boundary (defaults to yesterday if not supplied)
+  const effectiveEnd = endDate instanceof Date ? endDate : new Date(yesterday);
   data1 = [...data1]; // make mutable copy
   if (data2) data2 = [...data2];
   const calc = (data) => {
@@ -737,16 +776,15 @@ function processAndRender(ticker, data1, ticker2, data2) {
     return { cagr, totalReturn, finalVal, years, norm, trend, r2, vsTrend, maxDiscount, maxDiscountDate };
   };
 
-  // Ensure last data point is always yesterday
+  // Ensure last data point matches the effective end date — no flat-line extension
   const ensureYesterday = (data) => {
     if (!data || data.length < 2) return data;
-    const lastDate = data[data.length - 1].date;
-    const yest = new Date(yesterday);
-    yest.setHours(0, 0, 0, 0);
+    const lastDate = new Date(data[data.length - 1].date);
+    const target = new Date(effectiveEnd);
     lastDate.setHours(0, 0, 0, 0);
-    // If last point is not yesterday, add a copy of last point dated yesterday
-    if (lastDate.getTime() !== yest.getTime()) {
-      data = [...data, { date: new Date(yesterday), price: data[data.length - 1].price }];
+    target.setHours(0, 0, 0, 0);
+    if (lastDate.getTime() !== target.getTime()) {
+      data = [...data, { date: new Date(effectiveEnd), price: data[data.length - 1].price }];
     }
     return data;
   };
@@ -908,6 +946,22 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
      { label: `${ticker} Trend`, data: toXYTrend(norm1, trend1), borderColor: 'rgba(30,58,110,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true }
    ];
 
+   // Top border line — horizontal line at yMax so the chart always has a clean upper boundary
+   const allDates = norm1.map(d => d.date);
+   if (norm1.length >= 2) {
+     datasets.push({
+       label: '_topBorder',
+       data: [{ x: allDates[0], y: yMax }, { x: allDates[allDates.length - 1], y: yMax }],
+       borderColor: 'rgba(0,0,0,0.15)',
+       borderWidth: 1,
+       pointRadius: 0,
+       fill: false,
+       tension: 0,
+       order: 99,
+       showLine: true
+     });
+   }
+
    if (ticker2 && norm2) {
      const grad2 = ctx.createLinearGradient(0, 0, 0, 570);
      grad2.addColorStop(0, 'rgba(139,26,26,0.08)');
@@ -915,6 +969,38 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
      datasets.push({ label: ticker2, data: toXY(norm2), borderColor: DARK_RED, backgroundColor: grad2, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, order: 3, showLine: true });
      if (trend2) datasets.push({ label: `${ticker2} Trend`, data: toXYTrend(norm2, trend2), borderColor: 'rgba(139,26,26,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
    }
+
+  // Custom positioner: keeps tooltip a fixed distance above the cursor point,
+  // flips to below when too close to the top, and nudges left when near the right edge.
+  Chart.Tooltip.positioners.aboveCursor = function(elements, eventPosition) {
+    const chart = this.chart;
+    const OFFSET_Y = 80;   // px above the data point
+    const EDGE_PAD = 16;   // min px from chart edges before flipping/nudging
+    const tooltipWidth = this.width || 160;
+    const tooltipHeight = this.height || 80;
+
+    let x = eventPosition.x;
+    let y = eventPosition.y - OFFSET_Y;
+
+    // Flip below if too close to top
+    if (y < chart.chartArea.top + EDGE_PAD) {
+      y = eventPosition.y + OFFSET_Y;
+    }
+
+    // Nudge left if too close to right edge
+    const rightEdge = chart.chartArea.right;
+    if (x + tooltipWidth / 2 > rightEdge - EDGE_PAD) {
+      x = rightEdge - tooltipWidth / 2 - EDGE_PAD;
+    }
+
+    // Nudge right if too close to left edge
+    const leftEdge = chart.chartArea.left;
+    if (x - tooltipWidth / 2 < leftEdge + EDGE_PAD) {
+      x = leftEdge + tooltipWidth / 2 + EDGE_PAD;
+    }
+
+    return { x, y };
+  };
 
   myChart = new Chart(ctx, {
     type: 'scatter',
@@ -924,13 +1010,15 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: '#0a0a0f', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20 } },
+        legend: { display: true, labels: { color: '#0a0a0f', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20, filter: item => item.text !== '_topBorder' } },
         tooltip: {
           backgroundColor: '#ffffff', borderColor: '#dcdce8', borderWidth: 1,
           titleColor: '#0a0a0f', bodyColor: '#0a0a0f',
           titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 13 }, padding: 14,
+          caretSize: 0,
+          position: 'aboveCursor',
           callbacks: {
-            label: ctx => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
+            label: ctx => ctx.dataset.label === '_topBorder' ? null : `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
             title: items => items[0]?.raw?.x ? new Date(items[0].raw.x).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : ''
           }
         }
@@ -944,6 +1032,8 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
             color: '#0a0a0f', font: { family: 'DM Mono', size: 10 },
             minTicksLimit: 8, maxTicksLimit: 16,
             callback: v => {
+              // Always show yMax so the top border line has a label
+              if (Math.abs(v - yMax) / yMax < 0.02) return String(Math.round(yMax));
               const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000];
               const match = steps.find(s => Math.abs(s-v)/Math.max(v,0.001) < 0.02);
               return match !== undefined ? String(Math.round(match)) : null;
@@ -974,26 +1064,47 @@ async function showStatus() {
     const endTs = Math.floor(yesterday.getTime() / 1000) + 86400;
     const veryEarlyTs = -315619200;
 
-    // Use cache if available — skip full network fetch for both ticker and VFINX
+    // Same cache-depth validation as findBestTrend — never trust a cached result
+    // that starts after 2000, as it's likely a previously truncated Yahoo fetch.
+    const CACHE_DEPTH_CUTOFF = new Date('2000-01-01').getTime();
+    const isCacheDeep = (data) => data && data.length > 0 && data[0].date.getTime() < CACHE_DEPTH_CUTOFF;
+
     let rawDaily = diskCache.readFull(ticker);
-    if (rawDaily) {
+    if (rawDaily && isCacheDeep(rawDaily)) {
       document.getElementById('loaderText').textContent = 'Loading from cache...';
     } else {
+      if (rawDaily && !isCacheDeep(rawDaily)) {
+        console.warn(`Cached data for ${ticker} starts ${rawDaily[0]?.date?.toISOString().split('T')[0]} — too recent, busting cache.`);
+        diskCache._memFull[ticker] = null;
+        try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
+      }
       document.getElementById('loaderText').textContent = 'Fetching daily history...';
       rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
-      diskCache.writeFull(ticker, rawDaily);
+      if (isCacheDeep(rawDaily)) {
+        diskCache.writeFull(ticker, rawDaily);
+      } else {
+        console.warn(`Fetch for ${ticker} returned shallow data — skipping cache.`);
+      }
     }
 
     let rawVfinx = diskCache.readFull('VFINX');
-    if (!rawVfinx) {
+    if (rawVfinx && isCacheDeep(rawVfinx)) {
+      // cache is good, use it
+    } else {
+      if (rawVfinx && !isCacheDeep(rawVfinx)) {
+        diskCache._memFull['VFINX'] = null;
+        try { localStorage.removeItem(CACHE_PREFIX + 'full_VFINX'); } catch(e) {}
+      }
       document.getElementById('loaderText').textContent = 'Fetching VFINX history...';
       rawVfinx = await fetchRawData('VFINX', veryEarlyTs, endTs, '1d');
-      diskCache.writeFull('VFINX', rawVfinx);
+      if (isCacheDeep(rawVfinx)) {
+        diskCache.writeFull('VFINX', rawVfinx);
+      }
     }
 
     // Filter rawDaily to valid prices — same dataset processAndRender uses
     const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price));
-    const MIN_SCAN_POINTS = 21;
+    const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
     if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
 
     // O(n) scan using suffix sums

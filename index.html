@@ -224,7 +224,7 @@
   <div class="r2-note" id="r2note">
     <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
     <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
+    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Yahoo Finance &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -248,10 +248,11 @@
   </div>
   <div class="stats-with-ticker" id="statsRowRatio" style="display:none;">
     <div class="stats-ticker-label" style="font-size:32px;color:#0a0a0f;">RATIO</div>
-    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr 1fr 1fr;">
       <div class="stat-card"><div class="stat-label">Min Relative Value</div><div class="stat-value" id="statMinRatio" style="color:var(--red)">&#8212;</div><div class="stat-sub" id="statMinRatioDate">Date of lowest ratio</div></div>
       <div class="stat-card"><div class="stat-label">Current Relative Value</div><div class="stat-value" id="statCurRatio">&#8212;</div><div class="stat-sub">vs historical low</div></div>
       <div class="stat-card green"><div class="stat-label">Current vs Min</div><div class="stat-value" id="statCurVsMin" style="color:var(--green);font-weight:bold">&#8212;</div><div class="stat-sub">current / min ratio</div></div>
+      <div class="stat-card blue"><div class="stat-label">Days at CAGR to Match</div><div class="stat-value" id="statDaysToMatch">&#8212;</div><div class="stat-sub" id="statDaysToMatchSub">days at ticker CAGR</div></div>
     </div>
   </div>
 </main>
@@ -515,6 +516,38 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   };
 
 
+  // 0. Stooq — deepest history (back to 1920s for US stocks), no API key needed
+  // Must be attempted before Yahoo because Yahoo often lacks pre-2008 ticker history
+  // for renamed companies (e.g. NEE was FPL Group until 2009).
+  try {
+    const stooqTicker = ticker.includes('.') ? ticker.toLowerCase() : `${ticker.toLowerCase()}.us`;
+    const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqTicker}&i=d`;
+    const stooqResp = await fetch(stooqUrl, { signal: AbortSignal.timeout(15000) });
+    if (stooqResp.ok) {
+      const text = await stooqResp.text();
+      const lines = text.trim().split('\n');
+      if (lines.length > 2) {
+        // CSV: Date,Open,High,Low,Close,Volume
+        const stooqEntries = lines.slice(1).map(line => {
+          const cols = line.split(',');
+          const date = new Date(cols[0]);
+          const price = parseFloat(cols[4]);
+          return { date, price };
+        }).filter(d => !isNaN(d.price) && d.price > 0 && !isNaN(d.date.getTime()))
+          .sort((a, b) => a.date - b.date);
+        const stooqFiltered = filterEntries(stooqEntries);
+        if (stooqFiltered.length >= 2) {
+          // Only accept Stooq for deep-history requests if it actually has deep history
+          const needsDeepHistory = startTs < 0;
+          const stooqIsDeep = stooqEntries.length > 0 && stooqEntries[0].date.getTime() < new Date('2000-01-01').getTime();
+          if (!needsDeepHistory || stooqIsDeep) {
+            return stooqFiltered;
+          }
+        }
+      }
+    }
+  } catch(e) {}
+
   // 1. Yahoo Finance via Cloudflare Worker — deep history + true dividend reinvestment
   try {
     const entries = await fetchYahooTotalReturn();
@@ -757,7 +790,7 @@ async function findBestTrend() {
     document.getElementById('bestResult').classList.add('visible');
 
     document.getElementById('ticker2').value = '';
-    processAndRender(ticker, dailyData, null, null);
+    processAndRender(ticker, dailyData, null, null, trendEnd);
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');
@@ -853,11 +886,24 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
       curEl.textContent = curRatio ? curRatio.toFixed(4) : '—';
       curEl.style.color = curRatio && curRatio <= minRatio * 1.1 ? 'var(--red)' : 'var(--green)';
       const curVsMinEl = document.getElementById('statCurVsMin');
+      const daysEl = document.getElementById('statDaysToMatch');
+      const daysSubEl = document.getElementById('statDaysToMatchSub');
       if (curRatio && minRatio && minRatio > 0) {
         const pct = (curRatio / minRatio - 1) * 100;
         curVsMinEl.textContent = pct.toFixed(1) + '%';
+        const cagr1 = r1.cagr;
+        if (cagr1 > 0 && pct > 0) {
+          const days = Math.round(Math.log(1 + pct / 100) / Math.log(1 + cagr1) * 365);
+          daysEl.textContent = days.toLocaleString();
+          daysSubEl.textContent = `at ${(cagr1*100).toFixed(2)}% CAGR`;
+        } else {
+          daysEl.textContent = '—';
+          daysSubEl.textContent = 'days at ticker CAGR';
+        }
       } else {
         curVsMinEl.textContent = '—';
+        daysEl.textContent = '—';
+        daysSubEl.textContent = 'days at ticker CAGR';
       }
       ratioRow.style.display = 'flex';
       document.getElementById('statsInnerRatio').style.opacity = '1';
@@ -1037,11 +1083,11 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
         tooltip: {
           backgroundColor: '#ffffff', borderColor: '#dcdce8', borderWidth: 1,
           titleColor: '#0a0a0f', bodyColor: '#0a0a0f',
-          titleFont: { family: 'DM Mono', size: 11 }, bodyFont: { family: 'DM Mono', size: 13 }, padding: 14,
+          titleFont: { family: 'DM Mono', size: 9 }, bodyFont: { family: 'DM Mono', size: 10 }, padding: 7,
           caretSize: 0,
           position: 'aboveCursor',
           callbacks: {
-            label: ctx => ctx.dataset.label === '_topBorder' ? null : `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`,
+            label: ctx => { if (ctx.dataset.label === '_topBorder') return null; const lbl = ctx.dataset.label.endsWith(' Trend') ? 'Trend' : ctx.dataset.label; return `  ${lbl}: ${ctx.parsed.y.toFixed(2)}`; },
             title: items => items[0]?.raw?.x ? new Date(items[0].raw.x).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : ''
           }
         }
@@ -1212,7 +1258,7 @@ async function showStatus() {
       `Best window: <strong>${fmt(effectiveStart)}</strong> &rarr; <strong>${fmt(bestEnd)}</strong> &nbsp;|&nbsp; ${years.toFixed(1)} years`;
     document.getElementById('bestResult').classList.add('visible');
 
-    processAndRender(ticker, data1Aligned, 'VFINX', data2);
+    processAndRender(ticker, data1Aligned, 'VFINX', data2, trendEnd);
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');

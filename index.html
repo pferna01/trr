@@ -17,7 +17,8 @@
   body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
 
   header { padding: 48px 48px 24px; display: flex; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--border); }
-  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; color: #0a0a0f; text-shadow: none; }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: 2px; line-height: 1; color: #0a0a0f; text-shadow: none; cursor: pointer; transition: opacity 0.15s; }
+  .logo:hover { opacity: 0.6; }
   .logo span { color: var(--purple); opacity: 1; }
   .tagline { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; padding-bottom: 6px; }
   main { padding: 40px 48px; max-width: 1400px; margin: 0 auto; }
@@ -72,7 +73,7 @@
   .stat-sub { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 6px; }
   .stat-sub-prices { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--text); margin-top: 8px; opacity: 0.85; letter-spacing: 0.3px; }
   .chart-wrap { background: #ffffff; border: 1px solid var(--border); border-radius: 6px; padding: 32px; position: relative; height: 630px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px; }
-  .chart-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
+  .chart-wrap canvas { display: block; width: 100% !important; height: 100% !important; cursor: crosshair; }
   .loader { display: none; flex-direction: column; align-items: center; gap: 16px; }
   .loader.active { display: flex; }
   .spinner { width: 40px; height: 40px; border: 2px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -88,6 +89,59 @@
   .use-end-date-label:has(input:checked) span { opacity: 1; color: var(--purple); }
   @media (max-width: 1199px) { .use-end-date-row { grid-column: span 4; } }
   @media (max-width: 900px) { .use-end-date-row { grid-column: span 2; } }
+
+  /* ── Zoom overlay ── */
+  .zoom-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+  .zoom-overlay.active { display: flex; }
+  .zoom-panel { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 24px; width: min(820px, 92vw); box-shadow: 0 24px 64px rgba(0,0,0,0.18); position: relative; }
+  .zoom-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .zoom-title { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
+  .zoom-close { font-family: 'Bebas Neue', sans-serif; font-size: 20px; cursor: pointer; color: var(--muted); border: none; background: none; line-height: 1; padding: 0 4px; opacity: 0.5; transition: opacity 0.15s; }
+  .zoom-close:hover { opacity: 1; }
+  .zoom-chart-wrap { height: 320px; position: relative; }
+  .zoom-info { margin-top: 14px; display: flex; gap: 24px; flex-wrap: wrap; font-family: 'DM Mono', monospace; font-size: 12px; padding: 12px 16px; background: var(--surface); border-radius: 4px; border: 1px solid var(--border); }
+  .zoom-info-item { display: flex; flex-direction: column; gap: 3px; }
+  .zoom-info-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .zoom-info-value { color: var(--text); font-size: 13px; }
+
+  /* ── Fetch log panel ── */
+  .fetch-log-wrap { margin: 0 48px 32px; max-width: 1400px; margin-left: auto; margin-right: auto; padding: 0 48px; }
+  .fetch-log-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; padding: 10px 0; border: none; background: none; user-select: none; opacity: 0.6; transition: opacity 0.15s; }
+  .fetch-log-toggle:hover { opacity: 1; }
+  .fetch-log-toggle .arrow { display: inline-block; transition: transform 0.2s; font-size: 9px; }
+  .fetch-log-toggle.open .arrow { transform: rotate(90deg); }
+  .fetch-log-body { display: none; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+  .fetch-log-body.visible { display: block; }
+  .fetch-log-table { width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .fetch-log-table th { background: var(--surface); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; padding: 10px 16px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 500; }
+  .fetch-log-table td { padding: 9px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+  .fetch-log-table tr:last-child td { border-bottom: none; }
+  .fetch-log-table tr:hover td { background: var(--surface); }
+  .log-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; letter-spacing: 1px; font-weight: 500; }
+  .log-badge.cache   { background: rgba(14,165,233,0.12); color: #0ea5e9; }
+  .log-badge.success { background: rgba(22,163,74,0.12);  color: #16a34a; }
+  .log-badge.skip    { background: rgba(156,163,175,0.15); color: #6b7280; }
+  .log-badge.fail    { background: rgba(220,38,38,0.10);   color: #dc2626; }
+  .log-badge.shallow { background: rgba(249,115,22,0.12);  color: #f97316; }
+  .log-source { color: var(--text); opacity: 0.9; }
+  .log-ticker { color: var(--purple); font-weight: 500; }
+  .log-ms { color: var(--muted); text-align: right; }
+  .log-range { color: var(--muted); font-size: 11px; }
+  .log-empty { padding: 20px 16px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); text-align: center; opacity: 0.5; }
+  /* ── Top tickers panel ── */
+  .top-tickers-wrap { border-top: 1px solid var(--border); padding: 14px 16px 10px; background: var(--surface); }
+  .top-tickers-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .top-tickers-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ticker-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 11px; border: 1px solid var(--border); background: #fff; cursor: default; }
+  .ticker-chip.warm  { border-color: rgba(22,163,74,0.4);  background: rgba(22,163,74,0.07); }
+  .ticker-chip.stale { border-color: rgba(249,115,22,0.4); background: rgba(249,115,22,0.07); }
+  .ticker-chip.cold  { border-color: var(--border); background: var(--surface); opacity: 0.7; }
+  .ticker-chip .chip-name  { color: var(--purple); font-weight: 500; }
+  .ticker-chip .chip-dot   { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .ticker-chip.warm  .chip-dot { background: #16a34a; }
+  .ticker-chip.stale .chip-dot { background: #f97316; }
+  .ticker-chip.cold  .chip-dot { background: #9ca3af; }
+  .ticker-chip .chip-count { font-size: 10px; color: var(--muted); }
   .r2-note { margin-top: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.7; padding: 16px 20px; background: rgba(255,255,255,0.02); border-left: 2px solid var(--border); display: none; }
   .r2-note.visible { display: block; }
   /* ── Large desktop (1400px+): give the chart more room ── */
@@ -191,7 +245,7 @@
 </head>
 <body>
 <header>
-  <div><div class="logo">Pablo's<span>Finance</span>Project</div></div>
+  <div><div class="logo" onclick="resetApp()" title="Reset">Pablo's<span>Finance</span>Project</div></div>
   <div class="tagline">Dividends reinvested &middot; Trend-adjusted &middot; R&sup2; scored</div>
 </header>
 <main>
@@ -224,7 +278,7 @@
   <div class="r2-note" id="r2note">
     <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
     <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Stooq (deep history back to 1920s) &rarr; Yahoo Finance &rarr; Twelve Data &rarr; Alpha Vantage (8 keys).
+    <strong style="color:var(--muted)">Data sources:</strong> Stooq &rarr; Yahoo Finance &rarr; Tiingo &rarr; Alpha Vantage (8 keys) &rarr; Twelve Data.
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -256,10 +310,489 @@
     </div>
   </div>
 </main>
+<div class="zoom-overlay" id="zoomOverlay" onclick="handleZoomOverlayClick(event)">
+  <div class="zoom-panel" id="zoomPanel">
+    <div class="zoom-header">
+      <span class="zoom-title" id="zoomTitle">Zoomed View</span>
+      <button class="zoom-close" onclick="closeZoom()">✕</button>
+    </div>
+    <div class="zoom-chart-wrap"><canvas id="zoomChart"></canvas></div>
+    <div class="zoom-info" id="zoomInfo"></div>
+  </div>
+</div>
+
+<div class="fetch-log-wrap" id="fetchLogWrap" style="display:none;">
+  <button class="fetch-log-toggle" id="fetchLogToggle" onclick="toggleFetchLog()">
+    <span class="arrow">&#9654;</span>
+    <span>Data Fetch Log</span>
+    <span id="fetchLogCount" style="opacity:0.5;"></span>
+  </button>
+  <div class="fetch-log-body" id="fetchLogBody">
+    <table class="fetch-log-table">
+      <thead>
+        <tr>
+          <th>Ticker</th>
+          <th>Source</th>
+          <th>Result</th>
+          <th>Date Range</th>
+          <th style="text-align:right;">Time</th>
+        </tr>
+      </thead>
+      <tbody id="fetchLogRows">
+        <tr><td colspan="5" class="log-empty">No fetches yet.</td></tr>
+      </tbody>
+    </table>
+    <div class="top-tickers-wrap" id="topTickersWrap" style="display:none;">
+      <div class="top-tickers-label">&#9733; Your Top Tickers</div>
+      <div class="top-tickers-grid" id="topTickersGrid"></div>
+    </div>
+  </div>
+</div>
 <script>
 let myChart = null;
 let bestTrendStart = null;
 let bestTrendEnd = null;
+
+// ── Fetch log — records every data source attempt for display in the log panel ──
+const fetchLog = {
+  entries: [],
+  clear() { this.entries = []; },
+  add(ticker, source, result, ms, startDate, endDate) {
+    this.entries.push({ ticker, source, result, ms, startDate, endDate, time: new Date() });
+    this.render();
+  },
+  render() {
+    const tbody = document.getElementById('fetchLogRows');
+    const wrap = document.getElementById('fetchLogWrap');
+    const countEl = document.getElementById('fetchLogCount');
+    if (!tbody || !wrap) return;
+    wrap.style.display = '';
+    const entries = this.entries;
+    countEl.textContent = `(${entries.length} attempt${entries.length !== 1 ? 's' : ''})`;
+    if (entries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="log-empty">No fetches yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = entries.map(e => {
+      const badgeClass = e.result === 'CACHE' ? 'cache' : e.result === 'SUCCESS' ? 'success' : e.result === 'SHALLOW' ? 'shallow' : e.result === 'SKIP' ? 'skip' : 'fail';
+      const range = (e.startDate && e.endDate) ? `${e.startDate} → ${e.endDate}` : (e.startDate ? `${e.startDate} → ?` : '—');
+      const ms = e.ms != null ? `${e.ms}ms` : '—';
+      return `<tr>
+        <td class="log-ticker">${e.ticker}</td>
+        <td class="log-source">${e.source}</td>
+        <td><span class="log-badge ${badgeClass}">${e.result}</span></td>
+        <td class="log-range">${range}</td>
+        <td class="log-ms">${ms}</td>
+      </tr>`;
+    }).join('');
+  }
+};
+
+// ── Zoom window ──────────────────────────────────────────────────────────────
+let zoomChart = null;
+let zoomOpen = false;
+
+// Store chart data for zoom access
+let _zoomData = null;
+
+function handleZoomOverlayClick(e) {
+  if (e.target === document.getElementById('zoomOverlay')) closeZoom();
+}
+
+function closeZoom() {
+  document.getElementById('zoomOverlay').classList.remove('active');
+  if (zoomChart) { zoomChart.destroy(); zoomChart = null; }
+  zoomOpen = false;
+}
+
+function openZoom(clickedDate, norm1, trend1, support1, resistance1, ticker, norm2, trend2, ticker2) {
+  // If already open on the same date, close it
+  if (zoomOpen) { closeZoom(); return; }
+
+  const clickedTs = clickedDate instanceof Date ? clickedDate.getTime() : new Date(clickedDate).getTime();
+
+  // Window: ±5% of the total date span centered on the clicked date
+  const allTs = norm1.map(d => d.date.getTime());
+  const spanMs = allTs[allTs.length - 1] - allTs[0];
+  const MAX_WINDOW_MS = 9 * 30.44 * 24 * 60 * 60 * 1000; // 9 months cap
+  const MIN_WINDOW_MS = Math.min(30.44 * 24 * 60 * 60 * 1000, spanMs); // 1 month min, unless data is shorter
+  const windowMs = Math.max(Math.min(spanMs * 0.10, MAX_WINDOW_MS), MIN_WINDOW_MS);
+  const winStart = clickedTs - windowMs / 2;
+  const winEnd   = clickedTs + windowMs / 2;
+
+  // Slice all series to the window
+  const slice = (norm, trendArr) => {
+    const pts = norm.map((d, i) => ({ date: d.date, value: d.value, trend: trendArr ? trendArr[i] : null }))
+                    .filter(d => d.date.getTime() >= winStart && d.date.getTime() <= winEnd);
+    return pts;
+  };
+
+  const pts1 = slice(norm1, trend1);
+  const spts1 = support1    ? slice(norm1, support1)    : [];
+  const rpts1 = resistance1 ? slice(norm1, resistance1) : [];
+  const pts2  = norm2 ? slice(norm2, trend2) : [];
+
+  if (pts1.length < 2) return; // not enough data in window
+
+  // Y bounds for zoom window
+  const allY = [
+    ...pts1.map(d => d.value), ...pts1.map(d => d.trend).filter(Boolean),
+    ...spts1.map(d => d.trend).filter(Boolean), ...rpts1.map(d => d.trend).filter(Boolean),
+    ...pts2.map(d => d.value), ...pts2.map(d => d.trend).filter(Boolean)
+  ];
+  const yMin = Math.min(...allY) * 0.97;
+  const yMax = Math.max(...allY) * 1.03;
+
+  // Info box: values at the clicked date (nearest point)
+  const nearest = pts1.reduce((best, d) => Math.abs(d.date.getTime() - clickedTs) < Math.abs(best.date.getTime() - clickedTs) ? d : best, pts1[0]);
+  const dateStr = nearest.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  const pct = v => (v >= 1 ? '+' : '') + ((v - 1) * 100).toFixed(2) + '%';
+  const vsTrend = nearest.trend ? ((nearest.value - nearest.trend) / nearest.trend * 100).toFixed(1) + '%' : '—';
+
+  document.getElementById('zoomTitle').textContent = `${ticker} · ${dateStr} ± 5% window`;
+  document.getElementById('zoomInfo').innerHTML = `
+    <div class="zoom-info-item"><span class="zoom-info-label">Date</span><span class="zoom-info-value">${dateStr}</span></div>
+    <div class="zoom-info-item"><span class="zoom-info-label">Price (norm)</span><span class="zoom-info-value">${nearest.value.toFixed(4)}</span></div>
+    <div class="zoom-info-item"><span class="zoom-info-label">Trend (norm)</span><span class="zoom-info-value">${nearest.trend ? nearest.trend.toFixed(4) : '—'}</span></div>
+    <div class="zoom-info-item"><span class="zoom-info-label">vs Trend</span><span class="zoom-info-value" style="color:${parseFloat(vsTrend)>=0?'var(--green)':'var(--red)'}">${vsTrend}</span></div>
+    ${pts2.length ? (() => { const n2 = pts2.reduce((b,d) => Math.abs(d.date.getTime()-clickedTs)<Math.abs(b.date.getTime()-clickedTs)?d:b, pts2[0]); return `<div class="zoom-info-item"><span class="zoom-info-label">${ticker2} (norm)</span><span class="zoom-info-value">${n2.value.toFixed(4)}</span></div>`; })() : ''}
+  `;
+
+  const NAVY = '#1e3a6e';
+  const DARK_RED = '#8b1a1a';
+  const toXY = pts => pts.map(d => ({ x: d.date, y: d.value }));
+  const toXYT = pts => pts.map(d => ({ x: d.date, y: d.trend }));
+
+  const zoomDatasets = [
+    { label: ticker, data: toXY(pts1), borderColor: NAVY, backgroundColor: 'rgba(30,58,110,0.07)', borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0, showLine: true },
+    ...(pts1[0]?.trend != null ? [{ label: `${ticker} Trend`, data: toXYT(pts1), borderColor: 'rgba(30,58,110,0.45)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, showLine: true }] : []),
+    ...(spts1.length ? [{ label: `${ticker} Support`, data: toXYT(spts1), borderColor: 'rgba(30,58,110,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, showLine: true }] : []),
+    ...(rpts1.length ? [{ label: `${ticker} Resistance`, data: toXYT(rpts1), borderColor: 'rgba(30,58,110,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, showLine: true }] : []),
+    ...(pts2.length ? [
+      { label: ticker2, data: toXY(pts2), borderColor: DARK_RED, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, showLine: true },
+      ...(pts2[0]?.trend != null ? [{ label: `${ticker2} Trend`, data: toXYT(pts2), borderColor: 'rgba(139,26,26,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, showLine: true }] : [])
+    ] : [])
+  ];
+
+  // Vertical line at clicked date
+  zoomDatasets.push({
+    label: '_clickLine',
+    data: [{ x: new Date(clickedTs), y: yMin }, { x: new Date(clickedTs), y: yMax }],
+    borderColor: 'rgba(249,115,22,0.5)', borderWidth: 1.5, borderDash: [4,3],
+    pointRadius: 0, fill: false, tension: 0, showLine: true
+  });
+
+  document.getElementById('zoomOverlay').classList.add('active');
+  zoomOpen = true;
+
+  if (zoomChart) { zoomChart.destroy(); zoomChart = null; }
+  const zctx = document.getElementById('zoomChart').getContext('2d');
+  zoomChart = new Chart(zctx, {
+    type: 'scatter',
+    data: { datasets: zoomDatasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#fff', borderColor: '#dcdce8', borderWidth: 1,
+          titleColor: '#0a0a0f', bodyColor: '#0a0a0f',
+          titleFont: { family: 'DM Mono', size: 9 }, bodyFont: { family: 'DM Mono', size: 10 }, padding: 7,
+          callbacks: {
+            label: c => { if (c.dataset.label?.startsWith('_')) return null; return `  ${c.dataset.label.endsWith(' Trend') ? 'Trend' : c.dataset.label.endsWith(' Support') ? 'Support' : c.dataset.label.endsWith(' Resistance') ? 'Resistance' : c.dataset.label}: ${c.parsed.y.toFixed(4)}`; },
+            title: items => items[0]?.raw?.x ? new Date(items[0].raw.x).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : ''
+          }
+        }
+      },
+      scales: {
+        x: { type: 'time', time: { unit: 'week', tooltipFormat: 'MMM d, yyyy' }, grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { color: '#0a0a0f', font: { family: 'DM Mono', size: 9 }, maxTicksLimit: 8, maxRotation: 0 } },
+        y: { type: 'logarithmic', min: yMin, max: yMax, grid: { color: 'rgba(0,0,0,0.06)' }, ticks: { color: '#0a0a0f', font: { family: 'DM Mono', size: 9 }, maxTicksLimit: 8, callback: v => { const steps = [1,2,3,4,5,6,7,8,9,10,15,20,25,30,40,50,75,100,150,200,300,400,500,750,1000,1500,2000,3000,5000,7500,10000]; const m = steps.find(s => Math.abs(s-v)/Math.max(v,0.001)<0.02); return m !== undefined ? String(Math.round(m)) : null; } } }
+      }
+    }
+  });
+}
+
+function toggleFetchLog() {
+  const body = document.getElementById('fetchLogBody');
+  const toggle = document.getElementById('fetchLogToggle');
+  const open = body.classList.toggle('visible');
+  toggle.classList.toggle('open', open);
+  if (open) renderTopTickers();
+}
+
+function resetApp() {
+  // Reset all inputs to initial state
+  document.getElementById('ticker').value = '';
+  document.getElementById('ticker2').value = '';
+  delete document.getElementById('ticker2').dataset.setByStatus;
+  document.getElementById('startDate').value = '';
+  const resetYesterday = new Date();
+  resetYesterday.setDate(resetYesterday.getDate() - 1);
+  document.getElementById('endDate').value = resetYesterday.toISOString().split('T')[0];
+  document.getElementById('useEndDateChk').checked = false;
+
+  // Hide all results
+  clearError();
+  if (myChart) { myChart.destroy(); myChart = null; }
+  document.getElementById('myChart').style.display = 'none';
+  document.getElementById('statsRow').classList.remove('visible');
+  document.getElementById('statsRow2').classList.remove('visible');
+  document.getElementById('statsInner1').classList.remove('visible');
+  document.getElementById('statsInner2').classList.remove('visible');
+  document.getElementById('statsRowRatio').style.display = 'none';
+  document.getElementById('bestResult').classList.remove('visible');
+  document.getElementById('r2note').classList.remove('visible');
+  document.getElementById('fetchLogWrap').style.display = 'none';
+  document.getElementById('fetchLogBody').classList.remove('visible');
+  document.getElementById('fetchLogToggle').classList.remove('open');
+  setLoading(false);
+  fetchLog.clear();
+  bestTrendStart = null;
+  bestTrendEnd = null;
+
+  // Remove worker warning banner if present
+  const banner = document.getElementById('workerWarning');
+  if (banner) banner.remove();
+}
+
+// ── Ticker frequency tracker ─────────────────────────────────────────────────
+// Records every ticker run with a timestamp. Score = sum of recency-weighted
+// runs: each run contributes exp(-age_in_days / 30) so recent runs count more.
+// Top 15 tickers by score are pre-warmed on page load.
+const TRACKER_KEY = 'pfp_ticker_freq';
+const tickerTracker = {
+  _data: null,
+  load() {
+    if (this._data) return this._data;
+    try { this._data = JSON.parse(localStorage.getItem(TRACKER_KEY) || '{}'); }
+    catch(e) { this._data = {}; }
+    return this._data;
+  },
+  record(ticker) {
+    if (!ticker || ticker === 'VFINX') return; // VFINX is infrastructure, not a research ticker
+    const d = this.load();
+    if (!d[ticker]) d[ticker] = [];
+    d[ticker].push(Date.now());
+    // Keep only the last 200 runs per ticker to cap storage
+    if (d[ticker].length > 200) d[ticker] = d[ticker].slice(-200);
+    try { localStorage.setItem(TRACKER_KEY, JSON.stringify(d)); } catch(e) {}
+  },
+  score(ticker) {
+    const d = this.load();
+    const runs = d[ticker] || [];
+    const now = Date.now();
+    return runs.reduce((sum, ts) => sum + Math.exp(-(now - ts) / (30 * 86400000)), 0);
+  },
+  topN(n = 15) {
+    const d = this.load();
+    return Object.keys(d)
+      .map(t => ({ ticker: t, score: this.score(t), runs: d[t].length }))
+      .filter(t => t.score > 0.01)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, n);
+  }
+};
+
+// ── Smart historical cache (frozen + live split) ──────────────────────────────
+// Data older than FROZEN_CUTOFF_MONTHS is treated as frozen — stored with a
+// 30-day TTL instead of 24h. Only the last 6 months are re-fetched on each run.
+// This makes repeat Best Trend / Status runs near-instant for frequent tickers.
+const FROZEN_MONTHS = 6;
+const FROZEN_TTL_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+// Market close boundary helpers.
+// "Close" = 5 PM ET = 21:00 UTC (EDT / UTC-4). Conservative — slightly early in EST.
+// lastMarketCloseMs(): the most recent past 5 PM ET boundary (skipping weekends).
+// nextMarketCloseMs(): the next upcoming 5 PM ET boundary.
+// A cached live chunk is stale if it was written before the last close boundary.
+function _closeBoundary(date) {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 21, 0, 0));
+}
+function lastMarketCloseMs() {
+  const now = new Date();
+  // Start from today's close boundary and walk backwards to find the last weekday close
+  let d = new Date(now);
+  for (let i = 0; i < 7; i++) {
+    const boundary = _closeBoundary(d);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6 && now.getTime() >= boundary.getTime()) {
+      return boundary.getTime(); // this weekday's close has passed
+    }
+    d.setUTCDate(d.getUTCDate() - 1); // go back one day
+  }
+  return _closeBoundary(d).getTime(); // fallback
+}
+function nextMarketCloseMs() {
+  const now = new Date();
+  let d = new Date(now);
+  for (let i = 0; i < 7; i++) {
+    const boundary = _closeBoundary(d);
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6 && now.getTime() < boundary.getTime()) {
+      return boundary.getTime(); // next upcoming weekday close
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return _closeBoundary(d).getTime(); // fallback
+}
+
+const smartCache = {
+  _frozenKey: t => CACHE_PREFIX + 'frozen_' + t,
+  _liveKey:   t => CACHE_PREFIX + 'live_' + t,
+
+  frozenCutoffTs() {
+    const d = new Date();
+    d.setMonth(d.getMonth() - FROZEN_MONTHS);
+    return d.getTime();
+  },
+
+  // Write: split data into frozen (older than 6mo) and live (last 6mo)
+  write(ticker, data) {
+    if (!data || data.length === 0) return;
+    const cutoff = this.frozenCutoffTs();
+    const frozen = data.filter(d => d.date.getTime() < cutoff);
+    const live   = data.filter(d => d.date.getTime() >= cutoff);
+    if (frozen.length > 0) {
+      try {
+        localStorage.setItem(this._frozenKey(ticker), JSON.stringify({ ts: Date.now(), data: frozen }));
+      } catch(e) { this._evictOldest(); try { localStorage.setItem(this._frozenKey(ticker), JSON.stringify({ ts: Date.now(), data: frozen })); } catch(e2) {} }
+    }
+    if (live.length > 0) {
+      try {
+        localStorage.setItem(this._liveKey(ticker), JSON.stringify({ ts: Date.now(), data: live }));
+      } catch(e) { this._evictOldest(); try { localStorage.setItem(this._liveKey(ticker), JSON.stringify({ ts: Date.now(), data: live })); } catch(e2) {} }
+    }
+  },
+
+  // Read: return merged frozen+live if both valid, null if either missing/expired
+  // frozen: 30-day TTL. live: 24h TTL.
+  read(ticker) {
+    try {
+      const frozenRaw = localStorage.getItem(this._frozenKey(ticker));
+      const liveRaw   = localStorage.getItem(this._liveKey(ticker));
+      if (!frozenRaw || !liveRaw) return null;
+      const { ts: fTs, data: fData } = JSON.parse(frozenRaw);
+      const { ts: lTs, data: lData } = JSON.parse(liveRaw);
+      if (Date.now() - fTs > FROZEN_TTL_MS) { localStorage.removeItem(this._frozenKey(ticker)); return null; }
+      // Live chunk is stale if it was written before the most recent market close boundary
+      if (lTs < lastMarketCloseMs()) { localStorage.removeItem(this._liveKey(ticker)); return null; }
+      const merged = [...fData, ...lData]
+        .map(d => ({ ...d, date: new Date(d.date) }))
+        .sort((a, b) => a.date - b.date);
+      // Deduplicate by date
+      const seen = new Set();
+      return merged.filter(d => { const k = d.date.getTime(); if (seen.has(k)) return false; seen.add(k); return true; });
+    } catch(e) { return null; }
+  },
+
+  // Check if frozen chunk exists and is still valid (for pre-warm decisions)
+  hasFrozen(ticker) {
+    try {
+      const raw = localStorage.getItem(this._frozenKey(ticker));
+      if (!raw) return false;
+      const { ts } = JSON.parse(raw);
+      return Date.now() - ts <= FROZEN_TTL_MS;
+    } catch(e) { return false; }
+  },
+
+  // Check if live chunk is fresh (written after the most recent market close boundary)
+  liveIsFresh(ticker) {
+    try {
+      const raw = localStorage.getItem(this._liveKey(ticker));
+      if (!raw) return false;
+      const { ts } = JSON.parse(raw);
+      return ts >= lastMarketCloseMs();
+    } catch(e) { return false; }
+  },
+
+  // Full cache status for a ticker: 'warm' | 'stale' | 'cold'
+  status(ticker) {
+    if (this.read(ticker)) return 'warm';
+    if (this.hasFrozen(ticker)) return 'stale'; // frozen ok, live expired
+    return 'cold';
+  },
+
+  _evictOldest() {
+    try {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
+      if (keys.length === 0) return;
+      let oldest = keys[0], oldestTs = Infinity;
+      keys.forEach(k => { try { const t = JSON.parse(localStorage.getItem(k)).ts; if (t < oldestTs) { oldestTs = t; oldest = k; } } catch(e) {} });
+      localStorage.removeItem(oldest);
+    } catch(e) {}
+  }
+};
+
+// ── Top tickers panel renderer ────────────────────────────────────────────────
+function renderTopTickers() {
+  const top = tickerTracker.topN(15);
+  const wrap = document.getElementById('topTickersWrap');
+  const grid = document.getElementById('topTickersGrid');
+  if (!wrap || !grid || top.length === 0) return;
+  wrap.style.display = '';
+  grid.innerHTML = top.map(({ ticker, runs }) => {
+    const st = smartCache.status(ticker);
+    const label = st === 'warm' ? 'cached' : st === 'stale' ? 'live expired' : 'not cached';
+    return `<div class="ticker-chip ${st}" title="${runs} run${runs!==1?'s':''} · ${label}">
+      <span class="chip-dot"></span>
+      <span class="chip-name">${ticker}</span>
+      <span class="chip-count">${runs}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── Background pre-warmer ─────────────────────────────────────────────────────
+// Fires on page load. For each top ticker where frozen is ok but live is expired
+// (or nothing cached), quietly fetches the live chunk in the background.
+// Runs one at a time with a 1s gap to avoid hammering the proxy.
+// In-flight fetch tracker — prevents pre-warmer from fetching a ticker
+// that a user-initiated action is already fetching, and vice versa.
+const inFlight = new Set();
+let prewarmPaused = false;
+
+function pausePrewarm()  { prewarmPaused = true; }
+function resumePrewarm() { prewarmPaused = false; }
+
+async function prewarmTopTickers() {
+  const top = tickerTracker.topN(10);
+  const toWarm = top.filter(({ ticker }) => {
+    const st = smartCache.status(ticker);
+    return (st === 'stale' || st === 'cold') && !inFlight.has(ticker);
+  });
+  if (toWarm.length === 0) return;
+  console.log(`Pre-warming ${toWarm.length} ticker(s):`, toWarm.map(t => t.ticker).join(', '));
+  const cutoff = smartCache.frozenCutoffTs();
+  const endTs = Math.floor(Date.now() / 1000) + 86400;
+  for (const { ticker } of toWarm) {
+    // Pause while a user action is running — resume after
+    while (prewarmPaused) await new Promise(r => setTimeout(r, 500));
+    // Skip if a user action already fetched this ticker while we were waiting
+    if (inFlight.has(ticker) || smartCache.status(ticker) === 'warm') continue;
+    await new Promise(r => setTimeout(r, 1000)); // 1s gap between fetches
+    if (inFlight.has(ticker)) continue; // check again after the gap
+    inFlight.add(ticker);
+    try {
+      const liveStart = Math.floor(cutoff / 1000) - 86400 * 7; // 1-week overlap
+      const data = await fetchRawData(ticker, liveStart, endTs, '1d');
+      if (data && data.length > 0) {
+        const existing = smartCache.read(ticker);
+        const merged = existing
+          ? [...existing.filter(d => d.date.getTime() < cutoff), ...data]
+              .filter((d, i, arr) => arr.findIndex(x => x.date.getTime() === d.date.getTime()) === i)
+              .sort((a, b) => a.date - b.date)
+          : data;
+        smartCache.write(ticker, merged);
+        if (merged.length > 0 && merged[0].date.getTime() < new Date('2000-01-01').getTime()) {
+          diskCache.writeFull(ticker, merged);
+        }
+        console.log(`✓ Pre-warmed ${ticker} (${data.length} live points)`);
+        renderTopTickers();
+      }
+    } catch(e) { console.warn(`Pre-warm failed for ${ticker}:`, e.message); }
+    finally { inFlight.delete(ticker); }
+  }
+}
 
 // ── Persistent cache backed by localStorage ──────────────────────────────────
 // Entries expire after 24 hours so stale prices are never used.
@@ -274,7 +807,8 @@ const diskCache = {
       const raw = localStorage.getItem(CACHE_PREFIX + ticker);
       if (!raw) return null;
       const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_PREFIX + ticker); return null; }
+      // Stale if written before the most recent market close boundary
+      if (ts < lastMarketCloseMs()) { localStorage.removeItem(CACHE_PREFIX + ticker); return null; }
       // Rehydrate date strings back to Date objects
       return data.map(d => ({ ...d, date: new Date(d.date) }));
     } catch(e) { return null; }
@@ -308,13 +842,16 @@ const diskCache = {
       const raw = localStorage.getItem(CACHE_PREFIX + 'full_' + ticker);
       if (!raw) return null;
       const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); return null; }
+      // Full cache is stale if written before the most recent market close boundary
+      if (ts < lastMarketCloseMs()) { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); return null; }
       return data.map(d => ({ ...d, date: new Date(d.date) }));
     } catch(e) { return null; }
   },
   setFull(ticker, data) {
+    // Store firstDate alongside data so readFull can validate depth without scanning the array
+    const firstDate = data.length > 0 ? data[0].date.toISOString() : null;
     try {
-      localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), data }));
+      localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), firstDate, data }));
     } catch(e) {
       try {
         const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
@@ -322,12 +859,28 @@ const diskCache = {
           let oldest = keys[0], oldestTs = Infinity;
           keys.forEach(k => { try { const t = JSON.parse(localStorage.getItem(k)).ts; if (t < oldestTs) { oldestTs = t; oldest = k; } } catch(e) {} });
           localStorage.removeItem(oldest);
-          localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), data }));
+          localStorage.setItem(CACHE_PREFIX + 'full_' + ticker, JSON.stringify({ ts: Date.now(), firstDate, data }));
         }
       } catch(e) {}
     }
   },
-  readFull(ticker) { return this._memFull[ticker] ?? this.getFull(ticker); },
+  // Returns cached data only if it passes both TTL and depth checks.
+  // expectedDeep: if true, reject cache entries whose firstDate is after 2000-01-01
+  // (meaning a prior shallow fetch got cached and we need to re-fetch for full history).
+  readFull(ticker, expectedDeep = false) {
+    const cached = this._memFull[ticker] ?? this.getFull(ticker);
+    if (!cached) return null;
+    if (expectedDeep && cached.length > 0) {
+      const firstTs = cached[0].date.getTime();
+      if (firstTs > new Date('2000-01-01').getTime()) {
+        console.warn(`Cache for ${ticker} starts ${cached[0].date.toISOString().split('T')[0]} — too shallow for deep-history request, busting`);
+        this._memFull[ticker] = null;
+        try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
+        return null;
+      }
+    }
+    return cached;
+  },
   writeFull(ticker, data) { this._memFull[ticker] = data; this.setFull(ticker, data); }
 };
 
@@ -343,13 +896,64 @@ const AV_KEYS = [
   'JVUOF0Y0OAYU9H35','E4FDE6G689NMTMFX','FWB2227UETNQUUSO','W8XA6VAX4LVCHGPY'
 ];
 const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
+// Tiingo — reliable deep history (1970s+), free tier, stable API.
+// Sign up at https://www.tiingo.com/account/api/token to get your key.
+const TIINGO_KEY = '2f7b372277185bb8e037f4677be153be56bbd4ac';
 const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
+
+// Worker health check — fires once per session at startup.
+// Result is cached in sessionStorage so refreshing the page doesn't re-fire it.
+// If the Cloudflare worker is down, shows a visible warning banner.
+(async () => {
+  const SESSION_KEY = 'pfp_worker_ok';
+  if (sessionStorage.getItem(SESSION_KEY) === '1') {
+    console.log('✓ Worker health (cached)');
+    // Still render top tickers and kick off pre-warm even on cached health check
+    renderTopTickers();
+    setTimeout(prewarmTopTickers, 3000); // delay 3s so page load completes first
+    return;
+  }
+  try {
+    const testUrl = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1700000000&period2=1700086400&interval=1d`;
+    const resp = await fetch(WORKER + encodeURIComponent(testUrl), { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error(`worker HTTP ${resp.status}`);
+    const json = await resp.json();
+    if (!json?.chart?.result?.[0]) throw new Error('worker returned empty result');
+    sessionStorage.setItem(SESSION_KEY, '1');
+    console.log('✓ Cloudflare worker healthy');
+    renderTopTickers();
+    setTimeout(prewarmTopTickers, 3000);
+  } catch(e) {
+    console.warn('⚠ Cloudflare worker health check failed:', e.message);
+    const banner = document.createElement('div');
+    banner.id = 'workerWarning';
+    banner.style.cssText = 'background:rgba(249,115,22,0.1);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 48px;font-family:DM Mono,monospace;font-size:11px;color:#f97316;letter-spacing:1px;';
+    banner.textContent = '⚠  Yahoo Finance proxy may be unavailable — data will fall back to Stooq / Twelve Data / Alpha Vantage. Results may be slower or less complete.';
+    document.querySelector('header').after(banner);
+  }
+})();
 
 // Set default dates — start is intentionally blank (will fetch earliest available)
 const today = new Date();
 const yesterday = new Date(today);
 yesterday.setDate(today.getDate() - 1);
-document.getElementById('endDate').value = yesterday.toISOString().split('T')[0];
+
+// Dynamic end date: use today if it's past 5 PM ET (market close + 1hr buffer),
+// otherwise use yesterday since today's session isn't finalized yet.
+// ET offset: UTC-5 (EST) or UTC-4 (EDT). We use UTC-4 as a conservative estimate
+// (5 PM ET = 21:00 UTC in EDT, 22:00 UTC in EST — we use 21:00 to be safe).
+function getDefaultEndDate() {
+  const nowUtc = new Date();
+  const etHour = (nowUtc.getUTCHours() - 4 + 24) % 24; // approximate ET (EDT)
+  const etMinute = nowUtc.getUTCMinutes();
+  const isWeekend = nowUtc.getUTCDay() === 0 || nowUtc.getUTCDay() === 6;
+  const afterClose = etHour >= 17;
+  // On weekends, always use Friday (yesterday or further back)
+  if (isWeekend) return yesterday;
+  // On weekdays after 5 PM ET, today's close is available
+  return afterClose ? today : yesterday;
+}
+document.getElementById('endDate').value = getDefaultEndDate().toISOString().split('T')[0];
 
 function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.add('visible'); }
 function clearError() { document.getElementById('errorMsg').classList.remove('visible'); }
@@ -366,6 +970,12 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   const fmt = d => d.toISOString().split('T')[0];
   const fmtCompact = d => fmt(d).replace(/-/g,'');
   const filterEntries = entries => entries.filter(d => d.date >= s && d.date <= e);
+  // Helper: log a source attempt to the fetch log panel
+  const logAttempt = (source, result, ms, data) => {
+    const startDate = data && data.length > 0 ? data[0].date.toISOString().split('T')[0] : null;
+    const endDate   = data && data.length > 0 ? data[data.length-1].date.toISOString().split('T')[0] : null;
+    fetchLog.add(ticker, source, result, ms, startDate, endDate);
+  };
 
   // Build AV params
   let avFunction, seriesKey, outputSize = '';
@@ -384,13 +994,13 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   // Fetches full history in sequential batches of 4 concurrent chunks.
   // Sequential batching prevents Yahoo rate-limiting that silently drops early
   // chunks (pre-2008) when all 64 fire at once — the root cause of non-determinism.
-  const fetchYahooTotalReturn = async () => {
+  const fetchYahooTotalReturn = async (externalAbort) => {
     const maxHistoryTs = -315619200; // Jan 1 1960
     const chunkStart = Math.min(maxHistoryTs, startTs);
     const range = endTs - chunkStart;
 
     const NUM_CHUNKS = 64;
-    const BATCH_SIZE = 4;   // concurrent requests per wave — safe under Yahoo rate limits
+    const BATCH_SIZE = 8;   // 8 concurrent per wave — faster without triggering Yahoo rate limits
     const MAX_CHUNK_RETRIES = 2; // retry each failed chunk before giving up
     const step = Math.floor(range / NUM_CHUNKS);
     const overlap = 86400 * 30; // 30-day overlap to avoid gaps
@@ -400,7 +1010,8 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       for (let attempt = 0; attempt <= MAX_CHUNK_RETRIES; attempt++) {
         try {
           const url = `${yahooBase}?period1=${p1}&period2=${p2}&interval=${chunkInterval}&includeAdjustedClose=true`;
-          const resp = await fetch(worker + encodeURIComponent(url), { signal: AbortSignal.timeout(15000) });
+          const sig = externalAbort ? AbortSignal.any([externalAbort, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
+          const resp = await fetch(worker + encodeURIComponent(url), { signal: sig });
           if (!resp.ok) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
           const json = await resp.json();
           if (!json?.chart?.result?.[0]) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
@@ -516,87 +1127,191 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   };
 
 
-  // 0. Stooq — deepest history (back to 1920s for US stocks), no API key needed
-  // Must be attempted before Yahoo because Yahoo often lacks pre-2008 ticker history
-  // for renamed companies (e.g. NEE was FPL Group until 2009).
-  try {
-    const stooqTicker = ticker.includes('.') ? ticker.toLowerCase() : `${ticker.toLowerCase()}.us`;
-    const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqTicker}&i=d`;
-    const stooqResp = await fetch(stooqUrl, { signal: AbortSignal.timeout(15000) });
-    if (stooqResp.ok) {
-      const text = await stooqResp.text();
-      const lines = text.trim().split('\n');
-      if (lines.length > 2) {
-        // CSV: Date,Open,High,Low,Close,Volume
+  // 0+1. Stooq and Yahoo race in parallel — take whichever returns a valid result first.
+  // This eliminates the old sequential model where a 15s Stooq timeout blocked Yahoo.
+  // Both are kicked off simultaneously; the winner is used and the loser is ignored.
+  // Stooq is preferred when it returns deep history (pre-2000); Yahoo is the reliable fallback.
+  {
+    const needsDeepHistory = startTs < 0;
+    const pre2000 = new Date('2000-01-01').getTime();
+    const stooqController = new AbortController();
+    const yahooController = new AbortController();
+
+    const stooqPromise = (async () => {
+      const t0 = Date.now();
+      try {
+        const stooqTicker = ticker.includes('.') ? ticker.toLowerCase() : `${ticker.toLowerCase()}.us`;
+        const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqTicker}&i=d`;
+        const stooqResp = await fetch(stooqUrl, { signal: AbortSignal.any([stooqController.signal, AbortSignal.timeout(15000)]) });
+        if (!stooqResp.ok) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
+        const text = await stooqResp.text();
+        const lines = text.trim().split('\n');
+        if (lines.length <= 2) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
         const stooqEntries = lines.slice(1).map(line => {
           const cols = line.split(',');
-          const date = new Date(cols[0]);
-          const price = parseFloat(cols[4]);
-          return { date, price };
+          return { date: new Date(cols[0]), price: parseFloat(cols[4]) };
         }).filter(d => !isNaN(d.price) && d.price > 0 && !isNaN(d.date.getTime()))
           .sort((a, b) => a.date - b.date);
         const stooqFiltered = filterEntries(stooqEntries);
-        if (stooqFiltered.length >= 2) {
-          // Only accept Stooq for deep-history requests if it actually has deep history
-          const needsDeepHistory = startTs < 0;
-          const stooqIsDeep = stooqEntries.length > 0 && stooqEntries[0].date.getTime() < new Date('2000-01-01').getTime();
-          if (!needsDeepHistory || stooqIsDeep) {
-            return stooqFiltered;
+        if (stooqFiltered.length < 2) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
+        const stooqIsDeep = stooqEntries[0].date.getTime() < pre2000;
+        if (needsDeepHistory && !stooqIsDeep) { logAttempt('Stooq', 'SHALLOW', Date.now()-t0, stooqFiltered); return null; }
+        logAttempt('Stooq', 'SUCCESS', Date.now()-t0, stooqFiltered);
+        return stooqFiltered;
+      } catch(e) { if (!stooqController.signal.aborted) logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
+    })();
+
+    const yahooPromise = (async () => {
+      const t0 = Date.now();
+      try {
+        const entries = await fetchYahooTotalReturn(yahooController.signal);
+        if (!entries) { logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
+        const filtered = filterEntries(entries);
+        if (filtered.length < 2) { logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
+        const yahooIsDeep = filtered[0].date.getTime() < pre2000;
+        if (needsDeepHistory && !yahooIsDeep) {
+          logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered);
+          console.warn(`Yahoo returned shallow data for ${ticker} (starts ${filtered[0].date.toISOString().split('T')[0]}) — falling through`);
+          return null;
+        }
+        logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
+        return filtered;
+      } catch(e) { if (!yahooController.signal.aborted) logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
+    })();
+
+    // Race with a 2-second Stooq head start.
+    // Stooq when healthy responds in <1s — giving it 2s means it wins if it's going to work,
+    // preserving the deepest possible history. After 2s, Yahoo starts in parallel.
+    // This avoids the old 15s Stooq timeout penalty while still preferring Stooq's data depth.
+    const raceResult = await new Promise(resolve => {
+      let settled = false;
+      const trySettle = (result, cancelOther) => {
+        if (result && !settled) {
+          settled = true;
+          cancelOther();
+          resolve(result);
+        }
+      };
+      // Stooq gets first shot
+      stooqPromise.then(r => trySettle(r, () => yahooController.abort()));
+      // Yahoo starts after 2s head start for Stooq
+      setTimeout(() => {
+        yahooPromise.then(r => trySettle(r, () => stooqController.abort()));
+      }, 2000);
+      // If both finish without a valid result, resolve null
+      Promise.all([stooqPromise, yahooPromise]).then(() => { if (!settled) resolve(null); });
+    });
+
+    if (raceResult) return raceResult;
+  }
+
+  // 2. Tiingo — deep history (1970s+), stable API, properly adjusted prices.
+  // Better than Twelve Data and AV for history depth and reliability.
+  if (TIINGO_KEY && TIINGO_KEY !== 'YOUR_TIINGO_KEY_HERE') {
+    const t0 = Date.now();
+    try {
+      const tiingoInterval = interval === '1mo' ? 'monthly' : interval === '1d' ? 'daily' : 'weekly';
+      const tiingoUrl = `https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${fmt(s)}&endDate=${fmt(e)}&resampleFreq=${tiingoInterval}&token=${TIINGO_KEY}`;
+      const resp = await fetch(tiingoUrl, { signal: AbortSignal.timeout(12000) });
+      if (resp.ok) {
+        const result = await resp.json();
+        if (Array.isArray(result) && result.length >= 2) {
+          const entries = result.map(v => ({
+            date: new Date(v.date),
+            price: parseFloat(v.adjClose ?? v.close)
+          })).filter(d => !isNaN(d.price) && d.price > 0).sort((a, b) => a.date - b.date);
+          const filtered = filterEntries(entries);
+          if (filtered.length >= 2) {
+            logAttempt('Tiingo', 'SUCCESS', Date.now()-t0, filtered);
+            return filtered;
           }
         }
+        logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
+      } else {
+        logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
       }
-    }
+    } catch(e) { logAttempt('Tiingo', 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; }
+  }
+
+  // 3. Alpha Vantage keys — rotate with daily usage tracking so exhausted keys are skipped.
+  // AV free tier: 25 req/day per key. All keys reset at midnight UTC simultaneously,
+  // so we track usage per key per UTC-day and skip keys that have hit the limit.
+  const AV_DAILY_LIMIT = 25;
+  const avTodayUtc = new Date().toISOString().split('T')[0];
+  const avUsageKey = `${CACHE_PREFIX}av_usage_${avTodayUtc}`;
+  let avUsage = {};
+  try { avUsage = JSON.parse(localStorage.getItem(avUsageKey) || '{}'); } catch(e) {}
+  const bumpAvUsage = (key) => {
+    avUsage[key] = (avUsage[key] || 0) + 1;
+    try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+  };
+  // Purge usage records older than today
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX + 'av_usage_') && !k.endsWith(avTodayUtc))
+      .forEach(k => localStorage.removeItem(k));
   } catch(e) {}
 
-  // 1. Yahoo Finance via Cloudflare Worker — deep history + true dividend reinvestment
-  try {
-    const entries = await fetchYahooTotalReturn();
-    if (entries) {
-      const filtered = filterEntries(entries);
-      if (filtered.length >= 2) {
-        return filtered;
-      }
-    }
-  } catch(e) {}
-
-  // 2. Twelve Data
-  try {
-    const tdInterval = interval === '1d' ? '1day' : interval === '1wk' ? '1week' : '1month';
-    const url = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=${tdInterval}&start_date=${fmt(s)}&end_date=${fmt(e)}&outputsize=5000&dp=4&apikey=${TD_KEY}`;
-    const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
-    if (resp.ok) {
-      const result = await resp.json();
-      if (result.status === 'error' && result.message && result.message.toLowerCase().includes('not found'))
-        throw new Error(`Ticker "${ticker}" not found.`);
-      if (result.values && result.values.length >= 2) {
-        const entries = result.values.map(v => ({ date: new Date(v.datetime), price: parseFloat(v.close) }))
-          .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
-        const filtered = filterEntries(entries);
-        if (filtered.length >= 2) {
-          return filtered;
-        }
-      }
-    }
-  } catch(e) { if (e.message && e.message.includes('not found')) throw e; }
-
-  // 3. Alpha Vantage keys
+  let avKeyIndex = 0;
   for (const key of AV_KEYS) {
+    avKeyIndex++;
+    if ((avUsage[key] || 0) >= AV_DAILY_LIMIT) {
+      logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', 0, null);
+      console.warn(`AV key ${key.slice(0,6)}… exhausted for today (${avUsage[key]} calls) — skipping`);
+      continue;
+    }
+    const t0 = Date.now();
     try {
       const url = `https://www.alphavantage.co/query?function=${avFunction}&symbol=${ticker}${outputSize}&apikey=${key}`;
       const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      if (!resp.ok) continue;
+      bumpAvUsage(key);
+      if (!resp.ok) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
       const result = await resp.json();
       if (result['Error Message']) throw new Error(`Ticker "${ticker}" not found.`);
-      if (result['Note'] || result['Information']) continue;
-      if (!result[seriesKey]) continue;
+      if (result['Note'] || result['Information']) {
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', Date.now()-t0, null);
+        console.warn(`AV key ${key.slice(0,6)}… returned rate-limit response — marking exhausted`);
+        avUsage[key] = AV_DAILY_LIMIT;
+        try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+        continue;
+      }
+      if (!result[seriesKey]) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
       const entries = Object.entries(result[seriesKey])
         .map(([ds, vals]) => ({ date: new Date(ds), price: parseFloat(vals['5. adjusted close'] || vals['4. close']) }))
         .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
       const filtered = filterEntries(entries);
       if (filtered.length >= 2) {
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SUCCESS', Date.now()-t0, filtered);
         return filtered;
       }
-    } catch(e) { if (e.message && e.message.includes('not found')) throw e; continue; }
+      logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null);
+    } catch(e) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; continue; }
+  }
+
+  // 4. Twelve Data — last resort, history limited to ~2006 for most tickers.
+  {
+    const t0 = Date.now();
+    try {
+      const tdInterval = interval === '1d' ? '1day' : interval === '1wk' ? '1week' : '1month';
+      const url = `https://api.twelvedata.com/time_series?symbol=${ticker}&interval=${tdInterval}&start_date=${fmt(s)}&end_date=${fmt(e)}&outputsize=5000&dp=4&apikey=${TD_KEY}`;
+      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (resp.ok) {
+        const result = await resp.json();
+        if (result.status === 'error' && result.message && result.message.toLowerCase().includes('not found'))
+          throw new Error(`Ticker "${ticker}" not found.`);
+        if (result.values && result.values.length >= 2) {
+          const entries = result.values.map(v => ({ date: new Date(v.datetime), price: parseFloat(v.close) }))
+            .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
+          const filtered = filterEntries(entries);
+          if (filtered.length >= 2) {
+            logAttempt('Twelve Data', 'SUCCESS', Date.now()-t0, filtered);
+            return filtered;
+          }
+        }
+        logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
+      } else {
+        logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
+      }
+    } catch(e) { logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; }
   }
 
   throw new Error(`Could not fetch data for "${ticker}". Please try again.`);
@@ -611,6 +1326,10 @@ async function fetchData() {
   const ticker = document.getElementById('ticker').value.trim().toUpperCase();
   const ticker2 = ticker2El.value.trim().toUpperCase();
   const start = document.getElementById('startDate').value.trim();
+  // Refresh end date to today if past 5 PM ET and user hasn't manually set a custom end date
+  if (!document.getElementById('useEndDateChk').checked) {
+    document.getElementById('endDate').value = getDefaultEndDate().toISOString().split('T')[0];
+  }
   const end = document.getElementById('endDate').value.trim();
   if (!ticker) return showError('Please enter a ticker symbol.');
   if (!end) return showError('Please enter an end date (yyyy-mm-dd).');
@@ -623,6 +1342,7 @@ async function fetchData() {
   document.getElementById('statsInner2').classList.remove('visible');
   document.getElementById('statsRowRatio').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
+  fetchLog.clear();
   setLoading(true, false);
 
   // If no start date, fetch from the earliest possible date and let the data decide
@@ -642,6 +1362,13 @@ async function fetchData() {
     // Populate cache so subsequent BEST TREND / STATUS calls skip the network
     diskCache.write(ticker, data1);
     if (ticker2 && data2) diskCache.write(ticker2, data2);
+    // Also write to smart split cache for pre-warm system
+    smartCache.write(ticker, data1);
+    if (ticker2 && data2) smartCache.write(ticker2, data2);
+    // Record ticker usage for frequency tracking
+    tickerTracker.record(ticker);
+    if (ticker2) tickerTracker.record(ticker2);
+    renderTopTickers();
 
     // Backfill the start date field with the actual first data point
     if (!start && data1.length > 0) {
@@ -673,11 +1400,16 @@ async function findBestTrend() {
   document.getElementById('statsRowRatio').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
   setLoading(true, true);
+  pausePrewarm(); // suspend background pre-warmer while user action is in progress
 
   try {
     const useEndDate = document.getElementById('useEndDateChk').checked;
     const endDateVal = document.getElementById('endDate').value.trim();
-    let trendEnd = yesterday;
+    // Refresh displayed end date field to reflect current time (in case page was loaded earlier)
+    if (!useEndDate) {
+      document.getElementById('endDate').value = getDefaultEndDate().toISOString().split('T')[0];
+    }
+    let trendEnd = getDefaultEndDate(); // today if past 5 PM ET, else yesterday
     if (useEndDate && endDateVal) {
       const parsed = new Date(endDateVal);
       if (!isNaN(parsed)) trendEnd = parsed;
@@ -692,30 +1424,51 @@ async function findBestTrend() {
     const CACHE_DEPTH_CUTOFF = new Date('2000-01-01').getTime();
     const isCacheDeep = (data) => data && data.length > 0 && data[0].date.getTime() < CACHE_DEPTH_CUTOFF;
 
-    let rawDaily = diskCache.readFull(ticker);
-    if (rawDaily && isCacheDeep(rawDaily)) {
+    // Normalize trendEnd to end-of-day UTC so data points parsed as midnight UTC are never excluded
+    const trendEndNorm = new Date(Date.UTC(trendEnd.getUTCFullYear(), trendEnd.getUTCMonth(), trendEnd.getUTCDate(), 23, 59, 59, 999));
+    const trendEndTs = trendEndNorm.getTime();
+
+    // Bust the full cache if its last data point predates the most recent market close.
+    // This ensures that a cache written before today's close gets re-fetched after 5 PM ET.
+    const isCacheStale = (data) => {
+      if (!data || data.length === 0) return true;
+      const lastDataTs = data[data.length - 1].date.getTime();
+      const lastClose  = lastMarketCloseMs();
+      // Stale if: the last close boundary has passed AND the data doesn't include it yet
+      return Date.now() >= lastClose && lastDataTs < lastClose;
+    };
+
+    let rawDaily = diskCache.readFull(ticker, true); // true = reject shallow cached results
+    if (rawDaily && isCacheDeep(rawDaily) && !isCacheStale(rawDaily)) {
       document.getElementById('loaderText').textContent = 'Loading from cache...';
+      fetchLog.add(ticker, 'Cache (full)', 'CACHE', 0, rawDaily[0]?.date?.toISOString().split('T')[0], rawDaily[rawDaily.length-1]?.date?.toISOString().split('T')[0]);
     } else {
-      if (rawDaily && !isCacheDeep(rawDaily)) {
-        console.warn(`Cached data for ${ticker} starts ${rawDaily[0]?.date?.toISOString().split('T')[0]} — too recent, busting cache.`);
+      if (rawDaily) {
+        if (!isCacheDeep(rawDaily))
+          console.warn(`Cached data for ${ticker} starts ${rawDaily[0]?.date?.toISOString().split('T')[0]} — too recent, busting cache.`);
+        else
+          console.warn(`Cached data for ${ticker} ends ${rawDaily[rawDaily.length-1]?.date?.toISOString().split('T')[0]} — stale, busting cache.`);
         diskCache._memFull[ticker] = null;
         try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
       }
       document.getElementById('loaderText').textContent = 'Fetching daily history...';
-      rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
+      inFlight.add(ticker);
+      try {
+        rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
+      } finally { inFlight.delete(ticker); }
       // Only cache if data reaches back far enough — never cache a truncated result
       if (isCacheDeep(rawDaily)) {
         diskCache.writeFull(ticker, rawDaily);
+        smartCache.write(ticker, rawDaily);
       } else {
         console.warn(`Fetch for ${ticker} returned shallow data (starts ${rawDaily[0]?.date?.toISOString().split('T')[0]}) — skipping cache.`);
       }
     }
+    tickerTracker.record(ticker);
+    renderTopTickers();
 
     const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
 
-    // Filter rawDaily to valid prices only (same as processAndRender receives)
-    // Also clamp to trendEnd so the scan doesn't include data beyond the selected end date
-    const trendEndTs = trendEnd.getTime();
     const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price) && d.date.getTime() <= trendEndTs);
     if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
 
@@ -794,6 +1547,8 @@ async function findBestTrend() {
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');
+  } finally {
+    resumePrewarm();
   }
 }
 
@@ -829,17 +1584,36 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
         maxDiscountDate = norm[i].date;
       }
     }
-    return { cagr, totalReturn, finalVal, years, norm, trend, r2, vsTrend, maxDiscount, maxDiscountDate };
+    // Support line: same slope as trend, shifted down so 10% of prices fall below it.
+    // Resistance line: same slope as trend, shifted up so 10% of prices fall above it.
+    // Both computed from percentiles of log residuals (actual log price - fitted log price).
+    const logResiduals = x.map((xi, i) => y[i] - (intercept + slope * xi));
+    const sortedResiduals = [...logResiduals].sort((a, b) => a - b);
+    const p2idx  = Math.max(0, Math.floor(sortedResiduals.length * 0.02));
+    const p10idx = Math.floor(sortedResiduals.length * 0.10);
+    const p90idx = Math.min(sortedResiduals.length - 1, Math.floor(sortedResiduals.length * 0.90));
+    const p98idx = Math.min(sortedResiduals.length - 1, Math.floor(sortedResiduals.length * 0.98));
+    const p2residual  = sortedResiduals[p2idx];
+    const p10residual = sortedResiduals[p10idx];
+    const p90residual = sortedResiduals[p90idx];
+    const p98residual = sortedResiduals[p98idx];
+    const support    = x.map(xi => Math.exp(intercept + p10residual + slope * xi));
+    const resistance = x.map(xi => Math.exp(intercept + p90residual + slope * xi));
+    // p98 threshold — current price above this means top 2% vs trend
+    const p98threshold = Math.exp(intercept + p98residual + slope * (x.length - 1));
+    // p2 threshold — current price below this means bottom 2% vs trend
+    const p2threshold  = Math.exp(intercept + p2residual  + slope * (x.length - 1));
+
+    return { cagr, totalReturn, finalVal, years, norm, trend, support, resistance, p98threshold, p2threshold, r2, vsTrend, maxDiscount, maxDiscountDate };
   };
 
-  // Ensure last data point matches the effective end date — no flat-line extension
+  // Ensure last data point matches the effective end date — no flat-line extension.
+  // Compare by UTC date string to avoid local-timezone mismatches causing duplicate points.
   const ensureYesterday = (data) => {
     if (!data || data.length < 2) return data;
-    const lastDate = new Date(data[data.length - 1].date);
-    const target = new Date(effectiveEnd);
-    lastDate.setHours(0, 0, 0, 0);
-    target.setHours(0, 0, 0, 0);
-    if (lastDate.getTime() !== target.getTime()) {
+    const lastDateStr = data[data.length - 1].date.toISOString().split('T')[0];
+    const targetStr   = new Date(effectiveEnd).toISOString().split('T')[0];
+    if (lastDateStr !== targetStr) {
       data = [...data, { date: new Date(effectiveEnd), price: data[data.length - 1].price }];
     }
     return data;
@@ -912,7 +1686,7 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
     ratioRow.style.display = 'none';
   }
 
-  renderChart(ticker, r1.norm, r1.trend, r1.cagr, yMin, yMax, ticker2, r2 ? r2.norm : null, r2 ? r2.trend : null);
+  renderChart(ticker, r1.norm, r1.trend, r1.support, r1.resistance, r1.p98threshold, r1.p2threshold, r1.cagr, yMin, yMax, ticker2, r2 ? r2.norm : null, r2 ? r2.trend : null, r2 ? r2.support : null, r2 ? r2.resistance : null);
 
   // Stats row 1
   const comparing = !!(ticker2 && r2);
@@ -994,7 +1768,7 @@ function linearRegression(x, y) {
   return { slope, intercept };
 }
 
-function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, trend2) {
+function renderChart(ticker, norm1, trend1, support1, resistance1, p98threshold, p2threshold, cagr, yMin, yMax, ticker2, norm2, trend2, support2, resistance2) {
    const NAVY = '#1e3a6e';
    const DARK_RED = '#8b1a1a';
 
@@ -1006,13 +1780,43 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
    const toXY = (norm) => norm.map(d => ({ x: d.date, y: d.value }));
    const toXYTrend = (norm, trend) => norm.map((d, i) => ({ x: d.date, y: trend[i] }));
 
+   // Fill color depends on where current price sits relative to channel:
+   // above resistance → pale blue, inside channel → pale green, below support → pale yellow
+   const lastVal      = norm1[norm1.length - 1].value;
+   const lastSupport  = support1    ? support1[support1.length - 1]       : null;
+   const lastResist   = resistance1 ? resistance1[resistance1.length - 1] : null;
+   const aboveResist  = lastResist  && lastVal > lastResist;
+   const belowSupport = lastSupport && lastVal < lastSupport;
+
+   const aboveP98 = p98threshold && lastVal > p98threshold;
+   const belowP2  = p2threshold  && lastVal < p2threshold;
+
+   let fillColorTop, fillColorBot;
+   if (aboveResist && aboveP98) {
+     fillColorTop = 'rgba(14,165,233,0.45)';  // active blue — top 2% vs trend
+     fillColorBot = 'rgba(14,165,233,0.12)';
+   } else if (aboveResist) {
+     fillColorTop = 'rgba(147,210,245,0.22)'; // pale blue — above resistance but not extreme
+     fillColorBot = 'rgba(147,210,245,0.04)';
+   } else if (belowSupport && belowP2) {
+     fillColorTop = 'rgba(249,115,22,0.38)';  // active orange — bottom 2% vs trend
+     fillColorBot = 'rgba(249,115,22,0.10)';
+   } else if (belowSupport) {
+     fillColorTop = 'rgba(253,224,100,0.28)'; // pale yellow — below support but not extreme
+     fillColorBot = 'rgba(253,224,100,0.05)';
+   } else {
+     fillColorTop = 'rgba(134,218,162,0.22)'; // pale green — inside channel
+     fillColorBot = 'rgba(134,218,162,0.04)';
+   }
    const grad1 = ctx.createLinearGradient(0, 0, 0, 570);
-   grad1.addColorStop(0, 'rgba(30,58,110,0.12)');
-   grad1.addColorStop(1, 'rgba(30,58,110,0)');
+   grad1.addColorStop(0, fillColorTop);
+   grad1.addColorStop(1, fillColorBot);
 
    const datasets = [
      { label: ticker, data: toXY(norm1), borderColor: NAVY, backgroundColor: grad1, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0, order: 1, showLine: true },
-     { label: `${ticker} Trend`, data: toXYTrend(norm1, trend1), borderColor: 'rgba(30,58,110,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true }
+     { label: `${ticker} Trend`, data: toXYTrend(norm1, trend1), borderColor: 'rgba(30,58,110,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true },
+     ...(support1    ? [{ label: `${ticker} Support`,    data: toXYTrend(norm1, support1),    borderColor: 'rgba(30,58,110,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true }] : []),
+     ...(resistance1 ? [{ label: `${ticker} Resistance`, data: toXYTrend(norm1, resistance1), borderColor: 'rgba(30,58,110,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, order: 2, showLine: true }] : [])
    ];
 
    // Top border line — horizontal line at yMax so the chart always has a clean upper boundary
@@ -1037,6 +1841,8 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
      grad2.addColorStop(1, 'rgba(139,26,26,0)');
      datasets.push({ label: ticker2, data: toXY(norm2), borderColor: DARK_RED, backgroundColor: grad2, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4, fill: false, tension: 0, order: 3, showLine: true });
      if (trend2) datasets.push({ label: `${ticker2} Trend`, data: toXYTrend(norm2, trend2), borderColor: 'rgba(139,26,26,0.4)', borderWidth: 2, borderDash: [6,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
+     if (support2)    datasets.push({ label: `${ticker2} Support`,    data: toXYTrend(norm2, support2),    borderColor: 'rgba(139,26,26,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
+     if (resistance2) datasets.push({ label: `${ticker2} Resistance`, data: toXYTrend(norm2, resistance2), borderColor: 'rgba(139,26,26,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
    }
 
   // Custom positioner: keeps tooltip a fixed distance above the cursor point,
@@ -1071,6 +1877,9 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
     return { x, y };
   };
 
+  // Store references for zoom click handler
+  _zoomData = { norm1, trend1, support1, resistance1, ticker, norm2: norm2||null, trend2: trend2||null, ticker2: ticker2||null };
+
   myChart = new Chart(ctx, {
     type: 'scatter',
     data: { datasets },
@@ -1078,8 +1887,19 @@ function renderChart(ticker, norm1, trend1, cagr, yMin, yMax, ticker2, norm2, tr
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      onClick: (event, elements, chart) => {
+        if (!_zoomData) return;
+        const points = chart.getElementsAtEventForMode(event, 'index', { intersect: false }, true);
+        if (!points.length) return;
+        const idx = points[0].index;
+        const dsIdx = points[0].datasetIndex;
+        const clickedDate = chart.data.datasets[dsIdx]?.data[idx]?.x;
+        if (!clickedDate) return;
+        const { norm1, trend1, support1, resistance1, ticker, norm2, trend2, ticker2 } = _zoomData;
+        openZoom(clickedDate, norm1, trend1, support1, resistance1, ticker, norm2, trend2, ticker2);
+      },
       plugins: {
-        legend: { display: true, labels: { color: '#0a0a0f', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20, filter: item => item.text !== '_topBorder' } },
+        legend: { display: true, labels: { color: '#0a0a0f', font: { family: 'DM Mono', size: 11 }, boxWidth: 24, padding: 20, filter: item => item.text !== '_topBorder' && !item.text.endsWith(' Support') } },
         tooltip: {
           backgroundColor: '#ffffff', borderColor: '#dcdce8', borderWidth: 1,
           titleColor: '#0a0a0f', bodyColor: '#0a0a0f',
@@ -1146,42 +1966,55 @@ async function showStatus() {
     const CACHE_DEPTH_CUTOFF = new Date('2000-01-01').getTime();
     const isCacheDeep = (data) => data && data.length > 0 && data[0].date.getTime() < CACHE_DEPTH_CUTOFF;
 
-    let rawDaily = diskCache.readFull(ticker);
-    if (rawDaily && isCacheDeep(rawDaily)) {
-      document.getElementById('loaderText').textContent = 'Loading from cache...';
-    } else {
-      if (rawDaily && !isCacheDeep(rawDaily)) {
-        console.warn(`Cached data for ${ticker} starts ${rawDaily[0]?.date?.toISOString().split('T')[0]} — too recent, busting cache.`);
-        diskCache._memFull[ticker] = null;
-        try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
-      }
-      document.getElementById('loaderText').textContent = 'Fetching daily history...';
-      rawDaily = await fetchRawData(ticker, veryEarlyTs, endTs, '1d');
-      if (isCacheDeep(rawDaily)) {
-        diskCache.writeFull(ticker, rawDaily);
-      } else {
-        console.warn(`Fetch for ${ticker} returned shallow data — skipping cache.`);
-      }
-    }
+    // Normalize trendEnd to end-of-day UTC so midnight-UTC data points are never excluded
+    const trendEndNorm = new Date(Date.UTC(trendEnd.getUTCFullYear(), trendEnd.getUTCMonth(), trendEnd.getUTCDate(), 23, 59, 59, 999));
+    const trendEndTs = trendEndNorm.getTime();
 
+    // Bust stale full-cache entries if the data predates the most recent market close.
+    const isCacheStale = (data) => {
+      if (!data || data.length === 0) return true;
+      const lastDataTs = data[data.length - 1].date.getTime();
+      const lastClose  = lastMarketCloseMs();
+      return Date.now() >= lastClose && lastDataTs < lastClose;
+    };
+
+    // Bust stale/shallow cache entries before deciding what to fetch
+    let rawDaily = diskCache.readFull(ticker, true);
+    if (rawDaily && (!isCacheDeep(rawDaily) || isCacheStale(rawDaily))) {
+      console.warn(`Busting stale/shallow cache for ${ticker}`);
+      diskCache._memFull[ticker] = null;
+      try { localStorage.removeItem(CACHE_PREFIX + 'full_' + ticker); } catch(e) {}
+      rawDaily = null;
+    }
     let rawVfinx = diskCache.readFull('VFINX');
-    if (rawVfinx && isCacheDeep(rawVfinx)) {
-      // cache is good, use it
-    } else {
-      if (rawVfinx && !isCacheDeep(rawVfinx)) {
-        diskCache._memFull['VFINX'] = null;
-        try { localStorage.removeItem(CACHE_PREFIX + 'full_VFINX'); } catch(e) {}
-      }
-      document.getElementById('loaderText').textContent = 'Fetching VFINX history...';
-      rawVfinx = await fetchRawData('VFINX', veryEarlyTs, endTs, '1d');
-      if (isCacheDeep(rawVfinx)) {
-        diskCache.writeFull('VFINX', rawVfinx);
-      }
+    if (rawVfinx && (!isCacheDeep(rawVfinx) || isCacheStale(rawVfinx))) {
+      diskCache._memFull['VFINX'] = null;
+      try { localStorage.removeItem(CACHE_PREFIX + 'full_VFINX'); } catch(e) {}
+      rawVfinx = null;
     }
 
-    // Filter rawDaily to valid prices — same dataset processAndRender uses
-    // Clamp to trendEnd so the scan doesn't include data beyond the selected end date
-    const trendEndTs = trendEnd.getTime();
+    // Fetch ticker + VFINX in parallel when either needs a network call
+    const needsTickerFetch = !rawDaily;
+    const needsVfinxFetch  = !rawVfinx;
+
+    if (needsTickerFetch || needsVfinxFetch) {
+      document.getElementById('loaderText').textContent = 'Fetching history...';
+      const fetchTicker = needsTickerFetch ? fetchRawData(ticker, veryEarlyTs, endTs, '1d') : Promise.resolve(rawDaily);
+      const fetchVfinx  = needsVfinxFetch  ? fetchRawData('VFINX', veryEarlyTs, endTs, '1d') : Promise.resolve(rawVfinx);
+      [rawDaily, rawVfinx] = await Promise.all([fetchTicker, fetchVfinx]);
+      if (needsTickerFetch) {
+        if (isCacheDeep(rawDaily)) { diskCache.writeFull(ticker, rawDaily); smartCache.write(ticker, rawDaily); }
+        else console.warn(`Fetch for ${ticker} returned shallow data — skipping cache.`);
+      }
+      if (needsVfinxFetch && isCacheDeep(rawVfinx)) diskCache.writeFull('VFINX', rawVfinx);
+    tickerTracker.record(ticker);
+    renderTopTickers();
+    } else {
+      document.getElementById('loaderText').textContent = 'Loading from cache...';
+      fetchLog.add(ticker, 'Cache (full)', 'CACHE', 0, rawDaily[0]?.date?.toISOString().split('T')[0], rawDaily[rawDaily.length-1]?.date?.toISOString().split('T')[0]);
+      fetchLog.add('VFINX', 'Cache (full)', 'CACHE', 0, rawVfinx[0]?.date?.toISOString().split('T')[0], rawVfinx[rawVfinx.length-1]?.date?.toISOString().split('T')[0]);
+    }
+
     const validDaily = rawDaily.filter(d => d.price && d.price > 0 && !isNaN(d.price) && d.date.getTime() <= trendEndTs);
     const MIN_SCAN_POINTS = 21; // ~1 month minimum — find highest R² regardless of window length
     if (validDaily.length < MIN_SCAN_POINTS) throw new Error('Not enough historical data.');
@@ -1262,6 +2095,8 @@ async function showStatus() {
   } catch(e) {
     setLoading(false);
     showError(e.message || 'Something went wrong. Please try again.');
+  } finally {
+    resumePrewarm();
   }
 }
 

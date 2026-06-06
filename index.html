@@ -45,6 +45,25 @@
   .btn-status { background: var(--accent2); color: #ffffff; border: none; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1.5px; padding: 14px 28px; border-radius: 4px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; white-space: nowrap; }
   .btn-status:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(14,165,233,0.35); }
   .btn-status:active { transform: translateY(0); }
+  /* API health check */
+  .api-health-row { display: flex; justify-content: flex-end; margin: -6px 0 14px; }
+  .btn-health { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 14px; border-radius: 6px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.2s; }
+  .btn-health:hover { border-color: var(--purple); box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .btn-health:disabled { cursor: wait; }
+  .btn-health .dot { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; flex: none; }
+  .btn-health .dot.ok { background: var(--green); }
+  .btn-health .dot.warn { background: var(--accent); }
+  .btn-health .dot.bad { background: var(--red); }
+  .btn-health .dot.spin { background: var(--accent2); animation: hpulse 0.9s ease-in-out infinite; }
+  @keyframes hpulse { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+  .api-health-panel { display: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 0 0 20px; }
+  .api-health-panel.visible { display: block; }
+  .api-health-panel table { width: 100%; border-collapse: collapse; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .api-health-panel th { background: var(--surface); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; padding: 9px 16px; text-align: left; border-bottom: 1px solid var(--border); font-weight: 500; opacity: 0.7; }
+  .api-health-panel td { padding: 9px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
+  .api-health-panel tr:last-child td { border-bottom: none; }
+  .api-health-src { font-weight: 500; color: var(--purple); }
+  .api-health-note { color: var(--muted); opacity: 0.6; font-size: 11px; }
   .best-result { display: none; background: rgba(26,107,60,0.07); border: 1px solid rgba(26,107,60,0.3); border-radius: 6px; padding: 16px 24px; margin-bottom: 24px; font-family: 'DM Mono', monospace; font-size: 13px; color: var(--purple); line-height: 1.8; }
   .best-result.visible { display: block; }
   .best-result strong { color: var(--text); }
@@ -275,10 +294,21 @@
     <div class="loader" id="loader"><div class="spinner" id="spinnerEl"></div><div class="loader-text" id="loaderText">Fetching data...</div></div>
     <canvas id="myChart" style="display:none;"></canvas>
   </div>
+  <div class="api-health-row">
+    <button class="btn-health" id="apiHealthBtn" onclick="checkApiHealth()" title="Probe every data source and report status">
+      <span class="dot" id="apiHealthDot"></span><span id="apiHealthLabel">Check APIs</span>
+    </button>
+  </div>
+  <div class="api-health-panel" id="apiHealthPanel">
+    <table>
+      <thead><tr><th>Source</th><th>Status</th><th>Latency</th><th>Detail</th></tr></thead>
+      <tbody id="apiHealthRows"></tbody>
+    </table>
+  </div>
   <div class="r2-note" id="r2note">
     <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
     <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Stooq &rarr; Yahoo Finance &rarr; Tiingo &rarr; Alpha Vantage (8 keys) &rarr; Twelve Data.
+    <strong style="color:var(--muted)">Data sources:</strong> Yahoo Finance &rarr; Tiingo &rarr; Alpha Vantage (8 keys) &rarr; Twelve Data.
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -357,8 +387,8 @@ let bestTrendEnd = null;
 const fetchLog = {
   entries: [],
   clear() { this.entries = []; },
-  add(ticker, source, result, ms, startDate, endDate) {
-    this.entries.push({ ticker, source, result, ms, startDate, endDate, time: new Date() });
+  add(ticker, source, result, ms, startDate, endDate, detail) {
+    this.entries.push({ ticker, source, result, ms, startDate, endDate, detail, time: new Date() });
     this.render();
   },
   render() {
@@ -368,6 +398,7 @@ const fetchLog = {
     if (!tbody || !wrap) return;
     wrap.style.display = '';
     const entries = this.entries;
+    const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     countEl.textContent = `(${entries.length} attempt${entries.length !== 1 ? 's' : ''})`;
     if (entries.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" class="log-empty">No fetches yet.</td></tr>';
@@ -377,16 +408,140 @@ const fetchLog = {
       const badgeClass = e.result === 'CACHE' ? 'cache' : e.result === 'SUCCESS' ? 'success' : e.result === 'SHALLOW' ? 'shallow' : e.result === 'SKIP' ? 'skip' : 'fail';
       const range = (e.startDate && e.endDate) ? `${e.startDate} → ${e.endDate}` : (e.startDate ? `${e.startDate} → ?` : '—');
       const ms = e.ms != null ? `${e.ms}ms` : '—';
+      const detail = e.detail ? ` <span style="color:var(--muted);font-size:11px;margin-left:6px;">${esc(e.detail)}</span>` : '';
       return `<tr>
         <td class="log-ticker">${e.ticker}</td>
         <td class="log-source">${e.source}</td>
-        <td><span class="log-badge ${badgeClass}">${e.result}</span></td>
+        <td><span class="log-badge ${badgeClass}">${e.result}</span>${detail}</td>
         <td class="log-range">${range}</td>
         <td class="log-ms">${ms}</td>
       </tr>`;
     }).join('');
   }
 };
+
+// ── API health check ─────────────────────────────────────────────────────────
+// Probes every data source with one lightweight request against a common ticker
+// and reports OK / SLOW / FAIL, latency, and the reason. Sources are hit exactly
+// as the real fetch path hits them: Yahoo through the Worker, the rest directly.
+// Alpha Vantage is probed on a single key (cheap GLOBAL_QUOTE) to conserve the
+// 25/day budget, with a summary of how many keys still have budget today.
+async function checkApiHealth() {
+  const btn = document.getElementById('apiHealthBtn');
+  const dot = document.getElementById('apiHealthDot');
+  const label = document.getElementById('apiHealthLabel');
+  const panel = document.getElementById('apiHealthPanel');
+  const rows = document.getElementById('apiHealthRows');
+  btn.disabled = true;
+  dot.className = 'dot spin';
+  label.textContent = 'Checking…';
+  panel.classList.add('visible');
+  rows.innerHTML = '<tr><td colspan="4" style="padding:14px 16px;color:var(--muted);opacity:.6;">Probing all sources…</td></tr>';
+
+  const TEST = 'AAPL';
+  const SLOW_MS = 5000;
+  const since = s => Math.round(performance.now() - s);
+
+  const probeYahoo = async () => {
+    const s = performance.now();
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${TEST}?period1=1700000000&period2=1700604800&interval=1d`;
+      const r = await fetch(WORKER + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+      const ms = since(s);
+      if (!r.ok) return { name:'Yahoo Finance (Worker)', status:'FAIL', ms, note:`HTTP ${r.status}` };
+      const j = await r.json();
+      if (!j?.chart?.result?.[0]) return { name:'Yahoo Finance (Worker)', status:'FAIL', ms, note:'empty result' };
+      setWorkerHealthy(); // a clean probe clears any stale "proxy down" banner
+      return { name:'Yahoo Finance (Worker)', status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:'proxy + Yahoo reachable' };
+    } catch(e) {
+      return { name:'Yahoo Finance (Worker)', status:'FAIL', ms:since(s), note: e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,40) };
+    }
+  };
+
+  const probeTiingo = async () => {
+    const s = performance.now();
+    try {
+      const url = `https://api.tiingo.com/tiingo/daily/${TEST}/prices?startDate=2023-11-01&endDate=2023-11-10&token=${TIINGO_KEY}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const ms = since(s);
+      if (!r.ok) return { name:'Tiingo', status:'FAIL', ms, note:`HTTP ${r.status}${r.status===429?' (rate limited)':''}` };
+      const j = await r.json();
+      if (!Array.isArray(j) || j.length < 1) return { name:'Tiingo', status:'FAIL', ms, note:'no data returned' };
+      return { name:'Tiingo', status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:'key valid, data flowing' };
+    } catch(e) {
+      return { name:'Tiingo', status:'FAIL', ms:since(s), note: e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,40) };
+    }
+  };
+
+  const probeAV = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const usageKey = `${CACHE_PREFIX}av_usage_${today}`;
+    let usage = {};
+    try { usage = JSON.parse(localStorage.getItem(usageKey) || '{}'); } catch(e) {}
+    const withBudget = AV_KEYS.filter(k => (usage[k]||0) < 25);
+    const budget = `${withBudget.length}/${AV_KEYS.length} keys w/ budget`;
+    const probeKey = withBudget[0] || AV_KEYS[0];
+    const idx = AV_KEYS.indexOf(probeKey) + 1;
+    const s = performance.now();
+    try {
+      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${TEST}&apikey=${probeKey}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const ms = since(s);
+      usage[probeKey] = (usage[probeKey]||0) + 1; // count the probe so budget stays accurate
+      try { localStorage.setItem(usageKey, JSON.stringify(usage)); } catch(e) {}
+      if (!r.ok) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`HTTP ${r.status} · ${budget}` };
+      const j = await r.json();
+      const notice = j['Note'] || j['Information'];
+      if (notice) {
+        const lc = String(notice).toLowerCase();
+        const daily = (lc.includes('per day') || lc.includes('25 requests')) && !lc.includes('per minute');
+        return { name:'Alpha Vantage (8 keys)', status: daily?'FAIL':'SLOW', ms, note:`${daily?`key ${idx} daily cap`:'per-minute throttle (transient)'} · ${budget}` };
+      }
+      const q = j['Global Quote'];
+      if (!q || !q['05. price']) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`unexpected response · ${budget}` };
+      return { name:'Alpha Vantage (8 keys)', status: ms>SLOW_MS?'SLOW':'OK', ms, note:`key ${idx} OK · ${budget}` };
+    } catch(e) {
+      return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms:since(s), note:`${e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,28)} · ${budget}` };
+    }
+  };
+
+  const probeTD = async () => {
+    const s = performance.now();
+    try {
+      const url = `https://api.twelvedata.com/time_series?symbol=${TEST}&interval=1day&outputsize=5&apikey=${TD_KEY}`;
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      const ms = since(s);
+      if (!r.ok) return { name:'Twelve Data', status:'FAIL', ms, note:`HTTP ${r.status}` };
+      const j = await r.json();
+      if (j.status === 'error') return { name:'Twelve Data', status:'FAIL', ms, note:(j.message||'error').slice(0,40) };
+      if (!j.values || j.values.length < 1) return { name:'Twelve Data', status:'FAIL', ms, note:'no data returned' };
+      return { name:'Twelve Data', status: ms>SLOW_MS?'SLOW':'OK', ms, note:'reachable (unadjusted — last resort)' };
+    } catch(e) {
+      return { name:'Twelve Data', status:'FAIL', ms:since(s), note:e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,40) };
+    }
+  };
+
+  const results = await Promise.all([probeYahoo(), probeTiingo(), probeAV(), probeTD()]);
+
+  const badgeFor = st => st==='OK'?'success':st==='SLOW'?'shallow':st==='SKIP'?'skip':'fail';
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  rows.innerHTML = results.map(r => `<tr>
+    <td class="api-health-src">${r.name}</td>
+    <td><span class="log-badge ${badgeFor(r.status)}">${r.status}</span></td>
+    <td>${r.ms} ms</td>
+    <td class="api-health-note">${esc(r.note||'')}</td>
+  </tr>`).join('');
+
+  // Overall light: Yahoo (primary) down = red; any other fail/slow = amber; all good = green.
+  const yahoo = results[0];
+  let cls = 'ok', word = 'All healthy';
+  if (yahoo.status === 'FAIL') { cls = 'bad'; word = 'Primary down'; }
+  else if (results.some(r => r.status === 'FAIL')) { cls = 'warn'; word = 'Degraded'; }
+  else if (results.some(r => r.status === 'SLOW')) { cls = 'warn'; word = 'Slow'; }
+  dot.className = `dot ${cls}`;
+  label.textContent = word;
+  btn.disabled = false;
+}
 
 // ── Zoom window ──────────────────────────────────────────────────────────────
 let zoomChart = null;
@@ -635,6 +790,23 @@ function nextMarketCloseMs() {
     d.setUTCDate(d.getUTCDate() + 1);
   }
   return _closeBoundary(d).getTime(); // fallback
+}
+
+// Cache freshness is judged per trading DAY, not by raw timestamp. Daily bars are
+// stamped at the session open (~13:30 UTC from Yahoo) or midnight UTC (Tiingo/
+// Stooq), never at the 21:00 UTC close boundary — so comparing a bar's timestamp
+// directly against lastMarketCloseMs() flagged EVERY cache as stale and re-fetched
+// it on every call (VFINX was hit over the network on every STATUS). Compare
+// calendar days instead: the cache is fresh once it holds the last close's day.
+function isCacheStale(data) {
+  if (!data || data.length === 0) return true;
+  const lastClose = lastMarketCloseMs();
+  if (Date.now() < lastClose) return false;         // most recent close hasn't happened yet
+  const bar = data[data.length - 1].date;
+  const barDay   = Date.UTC(bar.getUTCFullYear(), bar.getUTCMonth(), bar.getUTCDate());
+  const cd       = new Date(lastClose);
+  const closeDay = Date.UTC(cd.getUTCFullYear(), cd.getUTCMonth(), cd.getUTCDate());
+  return barDay < closeDay;                          // stale only if cache misses the last close day
 }
 
 const smartCache = {
@@ -901,36 +1073,133 @@ const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
 const TIINGO_KEY = '2f7b372277185bb8e037f4677be153be56bbd4ac';
 const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
 
-// Worker health check — fires once per session at startup.
-// Result is cached in sessionStorage so refreshing the page doesn't re-fire it.
-// If the Cloudflare worker is down, shows a visible warning banner.
-(async () => {
-  const SESSION_KEY = 'pfp_worker_ok';
-  if (sessionStorage.getItem(SESSION_KEY) === '1') {
-    console.log('✓ Worker health (cached)');
-    // Still render top tickers and kick off pre-warm even on cached health check
-    renderTopTickers();
-    setTimeout(prewarmTopTickers, 3000); // delay 3s so page load completes first
-    return;
+// ---------------------------------------------------------------------------
+// Adaptive Cloudflare Worker health tracking.
+//
+// Previously this was a single startup probe whose result was cached in
+// sessionStorage for the entire session. That had two failure modes:
+//   1. A Worker that died mid-session was never noticed — Yahoo kept firing all
+//      64 chunks through a dead proxy on every lookup (the ~13–15s slowness),
+//      and the cascade silently fell through to the last source.
+//   2. A "healthy" cache from a previous session hid a Worker that had since
+//      gone down, and a Worker that recovered never cleared the banner.
+//
+// Now health is a live signal: seeded by a startup probe, updated by the real
+// outcome of every Yahoo fetch, and re-probed automatically (≤ once/60s) when
+// it looks unhealthy so a recovered Worker is picked back up. When unhealthy,
+// by the real outcome of every Yahoo fetch, and re-probed automatically (≤ once/60s)
+// when it looks unhealthy so a recovered Worker is picked back up. When unhealthy,
+// the Yahoo fetch is skipped entirely (no 64-chunk penalty) and we fall through to
+// Tiingo, and the banner appears/clears itself to match reality.
+// ---------------------------------------------------------------------------
+const workerHealth = {
+  status: 'unknown',         // 'unknown' | 'healthy' | 'unhealthy'
+  consecutiveFailures: 0,
+  lastProbe: 0,
+  probing: false,
+};
+
+function showWorkerBanner() {
+  if (document.getElementById('workerWarning')) return;
+  const banner = document.createElement('div');
+  banner.id = 'workerWarning';
+  banner.style.cssText = 'background:rgba(249,115,22,0.1);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 48px;font-family:DM Mono,monospace;font-size:11px;color:#f97316;letter-spacing:1px;';
+  banner.textContent = '⚠  Cloudflare proxy is unavailable — Yahoo is offline. Falling back to Tiingo / Alpha Vantage / Twelve Data. Results may be slower; these sources may not be dividend-adjusted.';
+  const header = document.querySelector('header');
+  if (header) header.after(banner);
+}
+
+function hideWorkerBanner() {
+  const b = document.getElementById('workerWarning');
+  if (b) b.remove();
+}
+
+// Non-blocking banner shown after an analysis when the data came from a
+// degraded / last-resort source, so falling all the way down the chain is
+// never silent. Pass null/'' to clear it.
+function showSourceNotice(msg) {
+  let n = document.getElementById('sourceNotice');
+  if (!msg) { if (n) n.remove(); return; }
+  if (!n) {
+    n = document.createElement('div');
+    n.id = 'sourceNotice';
+    n.style.cssText = 'background:rgba(249,115,22,0.1);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 48px;font-family:DM Mono,monospace;font-size:11px;color:#f97316;letter-spacing:1px;';
+    const wb = document.getElementById('workerWarning');
+    const header = document.querySelector('header');
+    if (wb) wb.after(n); else if (header) header.after(n);
   }
+  n.textContent = msg;
+}
+
+function setWorkerHealthy() {
+  const was = workerHealth.status;
+  workerHealth.status = 'healthy';
+  workerHealth.consecutiveFailures = 0;
+  try { sessionStorage.setItem('pfp_worker_ok', '1'); } catch(e) {}
+  hideWorkerBanner();
+  if (was !== 'healthy') console.log('✓ Cloudflare worker healthy');
+}
+
+function setWorkerUnhealthy() {
+  const was = workerHealth.status;
+  workerHealth.status = 'unhealthy';
+  try { sessionStorage.removeItem('pfp_worker_ok'); } catch(e) {}
+  showWorkerBanner();
+  if (was !== 'unhealthy') console.warn('⚠ Cloudflare worker marked unhealthy — demoting Yahoo in the source race');
+}
+
+// Called by the Yahoo fetch path with whether the Worker actually proxied a
+// response. `ok` reflects transport health only — NOT whether the data was deep
+// enough — so a shallow/truncated-history rejection never marks the Worker down.
+function reportWorkerOutcome(ok) {
+  if (ok) {
+    workerHealth.consecutiveFailures = 0;
+    if (workerHealth.status !== 'healthy') setWorkerHealthy();
+  } else {
+    workerHealth.consecutiveFailures++;
+    if (workerHealth.consecutiveFailures >= 2 && workerHealth.status !== 'unhealthy') {
+      setWorkerUnhealthy();
+    }
+  }
+}
+
+// Lightweight probe used at startup and for recovery re-checks.
+async function probeWorkerHealth() {
+  if (workerHealth.probing) return workerHealth.status === 'healthy';
+  workerHealth.probing = true;
+  workerHealth.lastProbe = Date.now();
   try {
     const testUrl = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1700000000&period2=1700086400&interval=1d`;
     const resp = await fetch(WORKER + encodeURIComponent(testUrl), { signal: AbortSignal.timeout(8000) });
     if (!resp.ok) throw new Error(`worker HTTP ${resp.status}`);
     const json = await resp.json();
     if (!json?.chart?.result?.[0]) throw new Error('worker returned empty result');
-    sessionStorage.setItem(SESSION_KEY, '1');
-    console.log('✓ Cloudflare worker healthy');
-    renderTopTickers();
-    setTimeout(prewarmTopTickers, 3000);
+    setWorkerHealthy();
+    return true;
   } catch(e) {
-    console.warn('⚠ Cloudflare worker health check failed:', e.message);
-    const banner = document.createElement('div');
-    banner.id = 'workerWarning';
-    banner.style.cssText = 'background:rgba(249,115,22,0.1);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 48px;font-family:DM Mono,monospace;font-size:11px;color:#f97316;letter-spacing:1px;';
-    banner.textContent = '⚠  Yahoo Finance proxy may be unavailable — data will fall back to Stooq / Twelve Data / Alpha Vantage. Results may be slower or less complete.';
-    document.querySelector('header').after(banner);
+    console.warn('⚠ Cloudflare worker probe failed:', e.message);
+    setWorkerUnhealthy();
+    return false;
+  } finally {
+    workerHealth.probing = false;
   }
+}
+
+// Re-probe an unhealthy Worker at most once per 60s so a recovery is detected
+// without spamming probes on every fetch. Called at the top of each fetch.
+function maybeRecheckWorker() {
+  if (workerHealth.status === 'unhealthy' && Date.now() - workerHealth.lastProbe > 60000) {
+    probeWorkerHealth();
+  }
+}
+
+// Startup: render UI immediately, seed status from the session cache as a hint,
+// then ALWAYS probe so a stale "healthy" cache can't hide a dead Worker.
+(async () => {
+  try { if (sessionStorage.getItem('pfp_worker_ok') === '1') workerHealth.status = 'healthy'; } catch(e) {}
+  renderTopTickers();
+  setTimeout(prewarmTopTickers, 3000); // delay 3s so page load completes first
+  probeWorkerHealth();
 })();
 
 // Set default dates — start is intentionally blank (will fetch earliest available)
@@ -971,10 +1240,10 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   const fmtCompact = d => fmt(d).replace(/-/g,'');
   const filterEntries = entries => entries.filter(d => d.date >= s && d.date <= e);
   // Helper: log a source attempt to the fetch log panel
-  const logAttempt = (source, result, ms, data) => {
+  const logAttempt = (source, result, ms, data, note) => {
     const startDate = data && data.length > 0 ? data[0].date.toISOString().split('T')[0] : null;
     const endDate   = data && data.length > 0 ? data[data.length-1].date.toISOString().split('T')[0] : null;
-    fetchLog.add(ticker, source, result, ms, startDate, endDate);
+    fetchLog.add(ticker, source, result, ms, startDate, endDate, note);
   };
 
   // Build AV params
@@ -995,9 +1264,56 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   // Sequential batching prevents Yahoo rate-limiting that silently drops early
   // chunks (pre-2008) when all 64 fire at once — the root cause of non-determinism.
   const fetchYahooTotalReturn = async (externalAbort) => {
+    // Tracks whether the Worker proxied at least one real Yahoo response this
+    // attempt. Used to update Worker health from transport outcome only.
+    let workerResponded = false;
     const maxHistoryTs = -315619200; // Jan 1 1960
     const chunkStart = Math.min(maxHistoryTs, startTs);
     const range = endTs - chunkStart;
+    const DEEP_HISTORY_CUTOFF = new Date('2000-01-01').getTime();
+
+    // FAST PATH: one full-range request. Yahoo usually returns complete daily
+    // history in a single call, so we try that first and skip the 8-wave chunk
+    // dance entirely. We accept it ONLY if it's both deep enough (reaches the
+    // requested start) AND dense enough (point count plausible for the span) —
+    // that catches Yahoo's two failure modes: silently truncating to ~2008, and
+    // capping/thinning a huge single response. Anything suspicious falls through
+    // to the chunked path below. No dividend call here: adjclose already includes
+    // dividend reinvestment, so the adjclose series IS the total-return series.
+    try {
+      const fullUrl = `${yahooBase}?period1=${chunkStart}&period2=${endTs}&interval=${yahooInterval}&includeAdjustedClose=true`;
+      const sig = externalAbort ? AbortSignal.any([externalAbort, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
+      const resp = await fetch(worker + encodeURIComponent(fullUrl), { signal: sig });
+      if (resp.ok) {
+        const json = await resp.json();
+        const r = json?.chart?.result?.[0];
+        if (r && r.timestamp && r.timestamp.length > 1) {
+          workerResponded = true;
+          const raw = r.indicators?.quote?.[0]?.close;
+          const adj = r.indicators?.adjclose?.[0]?.adjclose;
+          let fpts = r.timestamp.map((t, i) => {
+            const rawVal = raw?.[i];
+            const adjVal = (adj?.[i] != null && !isNaN(adj[i])) ? adj[i] : rawVal;
+            const price = adjVal ?? rawVal;
+            return { date: new Date(t * 1000), ts: t * 1000, adj: price };
+          }).filter(d => d.adj != null && !isNaN(d.adj) && d.adj > 0)
+            .sort((a, b) => a.ts - b.ts);
+          if (fpts.length >= 2) {
+            const spanYears  = (fpts[fpts.length-1].ts - fpts[0].ts) / (365.25 * 864e5);
+            const perYear    = yahooInterval === '1d' ? 200 : yahooInterval === '1wk' ? 40 : 10;
+            const deepEnough  = !(startTs < 0) || fpts[0].ts <= DEEP_HISTORY_CUTOFF;
+            const denseEnough = fpts.length >= Math.max(2, spanYears * perYear);
+            if (deepEnough && denseEnough) {
+              reportWorkerOutcome(true);
+              if (biWeekly) fpts = fpts.filter((_, i) => i % 2 === 0);
+              console.log(`Yahoo fast path: ${fpts.length} pts, ${fpts[0].date.toISOString().split('T')[0]} → single request`);
+              return fpts.map(pt => ({ date: pt.date, price: pt.adj }));
+            }
+            console.warn(`Yahoo fast path rejected for ${ticker} (deep=${deepEnough}, dense=${denseEnough}, ${fpts.length} pts) — falling back to chunked fetch.`);
+          }
+        }
+      }
+    } catch(e) { /* fall through to the chunked fetch below */ }
 
     const NUM_CHUNKS = 64;
     const BATCH_SIZE = 8;   // 8 concurrent per wave — faster without triggering Yahoo rate limits
@@ -1015,6 +1331,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
           if (!resp.ok) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
           const json = await resp.json();
           if (!json?.chart?.result?.[0]) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
+          workerResponded = true; // Worker successfully proxied a real Yahoo response
           const r = json.chart.result[0];
           const raw = r.indicators?.quote?.[0]?.close;
           const adj = r.indicators?.adjclose?.[0]?.adjclose;
@@ -1051,6 +1368,9 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       chunkResults.push(...results);
     }
     const divResp = await divPromise;
+
+    // Update live Worker health from transport outcome (not data depth).
+    reportWorkerOutcome(workerResponded);
 
     console.log('Chunk sizes:', chunkResults.map(c => c.length));
     console.log('Chunk first dates:', chunkResults.map(c => c[0]?.date?.toISOString().split('T')[0] || 'empty'));
@@ -1096,7 +1416,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     // early date range. If the assembled data starts after 2000-01-01 and we
     // asked for data going back to 1960, reject this result entirely so the caller
     // falls through to a fallback source rather than caching bad data.
-    const DEEP_HISTORY_CUTOFF = new Date('2000-01-01').getTime();
+    // (DEEP_HISTORY_CUTOFF defined at the top of this function.)
     const assembledStart = pts[0].date.getTime();
     if (startTs < 0 && assembledStart > DEEP_HISTORY_CUTOFF) {
       console.warn(`Yahoo returned truncated history for ${ticker} — assembled start: ${pts[0].date.toISOString().split('T')[0]}, expected pre-2000. Rejecting.`);
@@ -1127,82 +1447,38 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   };
 
 
-  // 0+1. Stooq and Yahoo race in parallel — take whichever returns a valid result first.
-  // This eliminates the old sequential model where a 15s Stooq timeout blocked Yahoo.
-  // Both are kicked off simultaneously; the winner is used and the loser is ignored.
-  // Stooq is preferred when it returns deep history (pre-2000); Yahoo is the reliable fallback.
+  // 1. Yahoo Finance (via the Cloudflare Worker) — primary source: true total
+  // return with dividend reinvestment and the deepest reliable history. When the
+  // Worker is down it's skipped instantly (no 64-chunk penalty) and we fall
+  // through to Tiingo → Alpha Vantage → Twelve Data.
+  // (Stooq was removed: routed through the Worker it returns Cloudflare's egress
+  // IP an anti-bot HTML page, never CSV — a 100% failure rate, so it's gone.)
   {
     const needsDeepHistory = startTs < 0;
     const pre2000 = new Date('2000-01-01').getTime();
-    const stooqController = new AbortController();
+    maybeRecheckWorker(); // re-probe an unhealthy Worker (≤once/60s) so Yahoo recovers automatically
     const yahooController = new AbortController();
-
-    const stooqPromise = (async () => {
-      const t0 = Date.now();
-      try {
-        const stooqTicker = ticker.includes('.') ? ticker.toLowerCase() : `${ticker.toLowerCase()}.us`;
-        const stooqUrl = `https://stooq.com/q/d/l/?s=${stooqTicker}&i=d`;
-        const stooqResp = await fetch(stooqUrl, { signal: AbortSignal.any([stooqController.signal, AbortSignal.timeout(15000)]) });
-        if (!stooqResp.ok) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
-        const text = await stooqResp.text();
-        const lines = text.trim().split('\n');
-        if (lines.length <= 2) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
-        const stooqEntries = lines.slice(1).map(line => {
-          const cols = line.split(',');
-          return { date: new Date(cols[0]), price: parseFloat(cols[4]) };
-        }).filter(d => !isNaN(d.price) && d.price > 0 && !isNaN(d.date.getTime()))
-          .sort((a, b) => a.date - b.date);
-        const stooqFiltered = filterEntries(stooqEntries);
-        if (stooqFiltered.length < 2) { logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
-        const stooqIsDeep = stooqEntries[0].date.getTime() < pre2000;
-        if (needsDeepHistory && !stooqIsDeep) { logAttempt('Stooq', 'SHALLOW', Date.now()-t0, stooqFiltered); return null; }
-        logAttempt('Stooq', 'SUCCESS', Date.now()-t0, stooqFiltered);
-        return stooqFiltered;
-      } catch(e) { if (!stooqController.signal.aborted) logAttempt('Stooq', 'FAIL', Date.now()-t0, null); return null; }
-    })();
-
-    const yahooPromise = (async () => {
+    if (workerHealth.status === 'unhealthy') {
+      logAttempt('Yahoo Finance', 'SKIP', 0, null);
+    } else {
       const t0 = Date.now();
       try {
         const entries = await fetchYahooTotalReturn(yahooController.signal);
-        if (!entries) { logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
-        const filtered = filterEntries(entries);
-        if (filtered.length < 2) { logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
-        const yahooIsDeep = filtered[0].date.getTime() < pre2000;
-        if (needsDeepHistory && !yahooIsDeep) {
+        const filtered = entries ? filterEntries(entries) : [];
+        if (filtered.length < 2) {
+          logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
+        } else if (needsDeepHistory && filtered[0].date.getTime() >= pre2000) {
           logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered);
           console.warn(`Yahoo returned shallow data for ${ticker} (starts ${filtered[0].date.toISOString().split('T')[0]}) — falling through`);
-          return null;
+        } else {
+          logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
+          filtered.__source = 'Yahoo Finance';
+          return filtered;
         }
-        logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
-        return filtered;
-      } catch(e) { if (!yahooController.signal.aborted) logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null); return null; }
-    })();
-
-    // Race with a 2-second Stooq head start.
-    // Stooq when healthy responds in <1s — giving it 2s means it wins if it's going to work,
-    // preserving the deepest possible history. After 2s, Yahoo starts in parallel.
-    // This avoids the old 15s Stooq timeout penalty while still preferring Stooq's data depth.
-    const raceResult = await new Promise(resolve => {
-      let settled = false;
-      const trySettle = (result, cancelOther) => {
-        if (result && !settled) {
-          settled = true;
-          cancelOther();
-          resolve(result);
-        }
-      };
-      // Stooq gets first shot
-      stooqPromise.then(r => trySettle(r, () => yahooController.abort()));
-      // Yahoo starts after 2s head start for Stooq
-      setTimeout(() => {
-        yahooPromise.then(r => trySettle(r, () => stooqController.abort()));
-      }, 2000);
-      // If both finish without a valid result, resolve null
-      Promise.all([stooqPromise, yahooPromise]).then(() => { if (!settled) resolve(null); });
-    });
-
-    if (raceResult) return raceResult;
+      } catch(e) {
+        if (!yahooController.signal.aborted) logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
+      }
+    }
   }
 
   // 2. Tiingo — deep history (1970s+), stable API, properly adjusted prices.
@@ -1223,6 +1499,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
           const filtered = filterEntries(entries);
           if (filtered.length >= 2) {
             logAttempt('Tiingo', 'SUCCESS', Date.now()-t0, filtered);
+            filtered.__source = 'Tiingo';
             return filtered;
           }
         }
@@ -1267,11 +1544,30 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       if (!resp.ok) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
       const result = await resp.json();
       if (result['Error Message']) throw new Error(`Ticker "${ticker}" not found.`);
-      if (result['Note'] || result['Information']) {
-        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', Date.now()-t0, null);
-        console.warn(`AV key ${key.slice(0,6)}… returned rate-limit response — marking exhausted`);
-        avUsage[key] = AV_DAILY_LIMIT;
-        try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+      const avNote = result['Note'] || result['Information'];
+      if (avNote) {
+        // AV free tier enforces TWO limits: 25/day AND 5/minute. The old code
+        // treated ANY notice as daily exhaustion and poisoned the key until UTC
+        // midnight — so a single burst that tripped the per-minute cap could
+        // permanently disable all 8 keys for the rest of the day. Now we read
+        // the message: only a genuine daily-cap notice retires the key. A
+        // per-minute throttle (or any other transient notice) just rotates to
+        // the next key, which is on its own independent per-minute budget, so
+        // the key stays usable for the rest of the day.
+        const noteLc = String(avNote).toLowerCase();
+        const mentionsPerMinute = noteLc.includes('per minute') || noteLc.includes('call frequency') || noteLc.includes('calls per');
+        const mentionsDaily = noteLc.includes('per day') || noteLc.includes('25 requests') || noteLc.includes('daily limit');
+        // Treat as a true daily cap only when it cites the daily limit and is NOT
+        // the combined frequency note (which mentions both per-minute and per-day).
+        if (mentionsDaily && !mentionsPerMinute) {
+          logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', Date.now()-t0, null);
+          console.warn(`AV key ${key.slice(0,6)}… daily limit reached — skipping until UTC midnight`);
+          avUsage[key] = AV_DAILY_LIMIT;
+          try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+        } else {
+          logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'THROTTLE', Date.now()-t0, null);
+          console.warn(`AV key ${key.slice(0,6)}… transient/per-minute throttle — rotating to next key, NOT marking exhausted`);
+        }
         continue;
       }
       if (!result[seriesKey]) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
@@ -1281,6 +1577,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       const filtered = filterEntries(entries);
       if (filtered.length >= 2) {
         logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SUCCESS', Date.now()-t0, filtered);
+        filtered.__source = `Alpha Vantage (key ${avKeyIndex})`;
         return filtered;
       }
       logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null);
@@ -1304,6 +1601,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
           const filtered = filterEntries(entries);
           if (filtered.length >= 2) {
             logAttempt('Twelve Data', 'SUCCESS', Date.now()-t0, filtered);
+            filtered.__source = 'Twelve Data';
             return filtered;
           }
         }
@@ -1343,6 +1641,7 @@ async function fetchData() {
   document.getElementById('statsRowRatio').style.display = 'none';
   document.getElementById('r2note').classList.remove('visible');
   fetchLog.clear();
+  showSourceNotice(null);
   setLoading(true, false);
 
   // If no start date, fetch from the earliest possible date and let the data decide
@@ -1358,6 +1657,20 @@ async function fetchData() {
     if (ticker2) fetches.push(fetchRawData(ticker2, startTs, endTs, '1d'));
     const [data1, data2] = await Promise.all(fetches);
     if (data1.length < 2) throw new Error('Not enough data points.');
+
+    // Surface degraded sourcing: Twelve Data (and Stooq for deep history) return
+    // prices that are not dividend-adjusted, so total-return figures from them
+    // are approximate. Warn so a fully-collapsed fallback chain is never silent.
+    const NON_TOTAL_RETURN = ['Twelve Data'];
+    const srcs = [data1.__source, data2 && data2.__source].filter(Boolean);
+    const degraded = [...new Set(srcs.filter(s => NON_TOTAL_RETURN.some(d => s.startsWith(d))))];
+    if (degraded.some(s => s.startsWith('Twelve Data'))) {
+      showSourceNotice(`⚠  Served by last-resort source (${srcs.join(', ')}). All higher-priority sources failed; these prices are not dividend-adjusted, so total-return numbers are approximate. Check the fetch log.`);
+    } else if (degraded.length) {
+      showSourceNotice(`ℹ  Data from ${degraded.join(', ')} — split-adjusted but not dividend-adjusted, so total-return figures are approximate.`);
+    } else {
+      showSourceNotice(null);
+    }
 
     // Populate cache so subsequent BEST TREND / STATUS calls skip the network
     diskCache.write(ticker, data1);
@@ -1430,13 +1743,7 @@ async function findBestTrend() {
 
     // Bust the full cache if its last data point predates the most recent market close.
     // This ensures that a cache written before today's close gets re-fetched after 5 PM ET.
-    const isCacheStale = (data) => {
-      if (!data || data.length === 0) return true;
-      const lastDataTs = data[data.length - 1].date.getTime();
-      const lastClose  = lastMarketCloseMs();
-      // Stale if: the last close boundary has passed AND the data doesn't include it yet
-      return Date.now() >= lastClose && lastDataTs < lastClose;
-    };
+    // Cache staleness handled by the shared, day-based isCacheStale() helper.
 
     let rawDaily = diskCache.readFull(ticker, true); // true = reject shallow cached results
     if (rawDaily && isCacheDeep(rawDaily) && !isCacheStale(rawDaily)) {
@@ -1971,12 +2278,7 @@ async function showStatus() {
     const trendEndTs = trendEndNorm.getTime();
 
     // Bust stale full-cache entries if the data predates the most recent market close.
-    const isCacheStale = (data) => {
-      if (!data || data.length === 0) return true;
-      const lastDataTs = data[data.length - 1].date.getTime();
-      const lastClose  = lastMarketCloseMs();
-      return Date.now() >= lastClose && lastDataTs < lastClose;
-    };
+    // Cache staleness handled by the shared, day-based isCacheStale() helper.
 
     // Bust stale/shallow cache entries before deciding what to fetch
     let rawDaily = diskCache.readFull(ticker, true);

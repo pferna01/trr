@@ -3,6 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- Connection priming: warm DNS+TLS during page load so the first data fetch
+     of a session skips the handshake (~100-200ms saved on the cold path). -->
+<link rel="preconnect" href="https://yahoo-proxy.5rktt4stnt.workers.dev" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="dns-prefetch" href="https://api.tiingo.com">
+<link rel="dns-prefetch" href="https://api.twelvedata.com">
+<link rel="dns-prefetch" href="https://financialmodelingprep.com">
+<link rel="dns-prefetch" href="https://www.alphavantage.co">
 <title>Pablo's Finance Project</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -308,7 +318,7 @@
   <div class="r2-note" id="r2note">
     <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
     <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Yahoo Finance &rarr; Tiingo &rarr; Alpha Vantage (8 keys) &rarr; Twelve Data.
+    <strong style="color:var(--muted)">Data sources:</strong> Yahoo Finance &rarr; Tiingo &rarr; Twelve Data &rarr; FMP. Twelve Data is unadjusted (price return); the others are dividend-adjusted. Alpha Vantage is used only for weekly/monthly (its daily-adjusted endpoint is premium-gated).
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -405,7 +415,7 @@ const fetchLog = {
       return;
     }
     tbody.innerHTML = entries.map(e => {
-      const badgeClass = e.result === 'CACHE' ? 'cache' : e.result === 'SUCCESS' ? 'success' : e.result === 'SHALLOW' ? 'shallow' : e.result === 'SKIP' ? 'skip' : 'fail';
+      const badgeClass = e.result === 'CACHE' ? 'cache' : e.result === 'SUCCESS' ? 'success' : e.result === 'SHALLOW' ? 'shallow' : (e.result === 'THROTTLE' || e.result === 'PREMIUM') ? 'shallow' : e.result === 'SKIP' ? 'skip' : 'fail';
       const range = (e.startDate && e.endDate) ? `${e.startDate} → ${e.endDate}` : (e.startDate ? `${e.startDate} → ?` : '—');
       const ms = e.ms != null ? `${e.ms}ms` : '—';
       const detail = e.detail ? ` <span style="color:var(--muted);font-size:11px;margin-left:6px;">${esc(e.detail)}</span>` : '';
@@ -422,10 +432,11 @@ const fetchLog = {
 
 // ── API health check ─────────────────────────────────────────────────────────
 // Probes every data source with one lightweight request against a common ticker
-// and reports OK / SLOW / FAIL, latency, and the reason. Sources are hit exactly
-// as the real fetch path hits them: Yahoo through the Worker, the rest directly.
-// Alpha Vantage is probed on a single key (cheap GLOBAL_QUOTE) to conserve the
-// 25/day budget, with a summary of how many keys still have budget today.
+// and reports OK / SLOW / FAIL, latency, and the reason. Each source is hit on
+// the SAME endpoint the real fetch path uses, so a probe can't pass while the
+// real fetch fails. Alpha Vantage is probed on TIME_SERIES_DAILY_ADJUSTED
+// (outputsize=compact to stay cheap) on a single key, with a summary of how many
+// keys still have budget today.
 async function checkApiHealth() {
   const btn = document.getElementById('apiHealthBtn');
   const dot = document.getElementById('apiHealthDot');
@@ -465,7 +476,15 @@ async function checkApiHealth() {
       const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
       const ms = since(s);
       if (!r.ok) return { name:'Tiingo', status:'FAIL', ms, note:`HTTP ${r.status}${r.status===429?' (rate limited)':''}` };
-      const j = await r.json();
+      const text = await r.text();
+      let j;
+      try { j = JSON.parse(text); }
+      catch(_) {
+        const lc = text.toLowerCase();
+        if (lc.includes('run over') || lc.includes('limit') || lc.includes('upgrade'))
+          return { name:'Tiingo', status:'SLOW', ms, note:'quota wall (free: ~50/hr, 500/mo)' };
+        return { name:'Tiingo', status:'FAIL', ms, note:'non-JSON response' };
+      }
       if (!Array.isArray(j) || j.length < 1) return { name:'Tiingo', status:'FAIL', ms, note:'no data returned' };
       return { name:'Tiingo', status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:'key valid, data flowing' };
     } catch(e) {
@@ -484,22 +503,30 @@ async function checkApiHealth() {
     const idx = AV_KEYS.indexOf(probeKey) + 1;
     const s = performance.now();
     try {
-      const url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${TEST}&apikey=${probeKey}`;
+      // Probe the SAME endpoint the app actually fetches (daily adjusted) — NOT
+      // GLOBAL_QUOTE. A cheap free quote endpoint falsely reported "OK" while the
+      // real workhorse endpoint was premium-gated and returning no data. That
+      // mismatch is exactly why this button couldn't be trusted. outputsize=compact
+      // keeps it light; premium gating is per-function, so compact reveals it too.
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${TEST}&outputsize=compact&apikey=${probeKey}`;
       const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
       const ms = since(s);
       usage[probeKey] = (usage[probeKey]||0) + 1; // count the probe so budget stays accurate
       try { localStorage.setItem(usageKey, JSON.stringify(usage)); } catch(e) {}
       if (!r.ok) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`HTTP ${r.status} · ${budget}` };
       const j = await r.json();
+      if (j['Error Message']) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`invalid key/symbol · ${budget}` };
       const notice = j['Note'] || j['Information'];
       if (notice) {
         const lc = String(notice).toLowerCase();
+        if (lc.includes('premium') || lc.includes('subscribe'))
+          return { name:'Alpha Vantage (8 keys)', status:'SKIP', ms, note:`benched — daily-adjusted is premium-gated (keys valid; free for weekly/monthly) · ${budget}` };
         const daily = (lc.includes('per day') || lc.includes('25 requests')) && !lc.includes('per minute');
         return { name:'Alpha Vantage (8 keys)', status: daily?'FAIL':'SLOW', ms, note:`${daily?`key ${idx} daily cap`:'per-minute throttle (transient)'} · ${budget}` };
       }
-      const q = j['Global Quote'];
-      if (!q || !q['05. price']) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`unexpected response · ${budget}` };
-      return { name:'Alpha Vantage (8 keys)', status: ms>SLOW_MS?'SLOW':'OK', ms, note:`key ${idx} OK · ${budget}` };
+      const ts = j['Time Series (Daily)'];
+      if (!ts || !Object.keys(ts).length) return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms, note:`no time-series data · ${budget}` };
+      return { name:'Alpha Vantage (8 keys)', status: ms>SLOW_MS?'SLOW':'OK', ms, note:`key ${idx} OK — real data · ${budget}` };
     } catch(e) {
       return { name:'Alpha Vantage (8 keys)', status:'FAIL', ms:since(s), note:`${e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,28)} · ${budget}` };
     }
@@ -521,7 +548,30 @@ async function checkApiHealth() {
     }
   };
 
-  const results = await Promise.all([probeYahoo(), probeTiingo(), probeAV(), probeTD()]);
+  const probeFMP = async () => {
+    if (!FMP_KEY || FMP_KEY === 'YOUR_FMP_KEY_HERE')
+      return { name:'FMP', status:'SKIP', ms:0, note:'no key set — add FMP_KEY to enable' };
+    const base = 'https://financialmodelingprep.com/stable/historical-price-eod';
+    const s = performance.now();
+    for (const ep of [{path:'dividend-adjusted',label:'div-adj'},{path:'full',label:'split-adj'}]) {
+      try {
+        const url = `${base}/${ep.path}?symbol=${TEST}&from=2023-11-01&to=2023-11-10&apikey=${FMP_KEY}`;
+        const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+        const ms = since(s);
+        if (r.status === 401 || r.status === 402 || r.status === 403) continue; // try next endpoint
+        if (!r.ok) continue;
+        const j = await r.json();
+        const rows2 = Array.isArray(j) ? j : (Array.isArray(j.historical) ? j.historical : null);
+        if (!rows2 || rows2.length < 1) continue;
+        return { name:'FMP', status: ms>SLOW_MS?'SLOW':'OK', ms, note:`key valid — ${ep.label} history flowing` };
+      } catch(e) {
+        return { name:'FMP', status:'FAIL', ms:since(s), note:e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,40) };
+      }
+    }
+    return { name:'FMP', status:'FAIL', ms:since(s), note:'both endpoints gated on this plan (HTTP 403)' };
+  };
+
+  const results = await Promise.all([probeYahoo(), probeTiingo(), probeTD(), probeFMP(), probeAV()]);
 
   const badgeFor = st => st==='OK'?'success':st==='SLOW'?'shallow':st==='SKIP'?'skip':'fail';
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1071,6 +1121,10 @@ const TD_KEY = '2250f441cf9b4a0581b1390f26483f24';
 // Tiingo — reliable deep history (1970s+), free tier, stable API.
 // Sign up at https://www.tiingo.com/account/api/token to get your key.
 const TIINGO_KEY = '2f7b372277185bb8e037f4677be153be56bbd4ac';
+// Financial Modeling Prep — free tier 250 req/day, 30+ yr adjusted EOD history.
+// Get a free key at https://site.financialmodelingprep.com/developer/docs and
+// paste it here to activate the FMP fallback (replaces the removed Stooq slot).
+const FMP_KEY = 'hXuoi4tUf4Ay7jIsh24Uh7nYoEpN7Y5x';
 const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
 
 // ---------------------------------------------------------------------------
@@ -1447,145 +1501,259 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   };
 
 
-  // 1. Yahoo Finance (via the Cloudflare Worker) — primary source: true total
-  // return with dividend reinvestment and the deepest reliable history. When the
-  // Worker is down it's skipped instantly (no 64-chunk penalty) and we fall
-  // through to Tiingo → Alpha Vantage → Twelve Data.
-  // (Stooq was removed: routed through the Worker it returns Cloudflare's egress
-  // IP an anti-bot HTML page, never CSV — a 100% failure rate, so it's gone.)
-  {
-    const needsDeepHistory = startTs < 0;
-    const pre2000 = new Date('2000-01-01').getTime();
+  // ─────────────────────────────────────────────────────────────────────────
+  // Source cascade. Ordering is ADAPTIVE based on what the request needs:
+  //
+  //   • Deep-history requests (startTs < 0 — "from inception", BEST TREND, full
+  //     range) prioritize DEPTH: Yahoo → Tiingo → Alpha Vantage → Twelve Data.
+  //     Twelve Data caps at ~2006 for most tickers, so it sits last as a shallow
+  //     last resort rather than masking the deep sources.
+  //
+  //   • Bounded requests (a specific recent date range) prioritize RELIABILITY,
+  //     since depth is irrelevant: Yahoo → Twelve Data → Tiingo → Alpha Vantage.
+  //     This is the common path and it reaches a source that actually works
+  //     (Yahoo, else Twelve Data) without first grinding through flaky Tiingo and
+  //     the 8 Alpha Vantage keys.
+  //
+  // (Stooq was removed: through the Worker it returns Cloudflare's anti-bot HTML,
+  // never CSV — a 100% failure rate.)
+  // ─────────────────────────────────────────────────────────────────────────
+  const needsDeepHistory = startTs < 0;
+  const pre2000 = new Date('2000-01-01').getTime();
+
+  // 1. Yahoo Finance (via the Cloudflare Worker) — true total return with
+  // dividend reinvestment and the deepest reliable history. Skipped instantly
+  // when the Worker is known-down (no 64-chunk penalty).
+  const tryYahoo = async () => {
     maybeRecheckWorker(); // re-probe an unhealthy Worker (≤once/60s) so Yahoo recovers automatically
     const yahooController = new AbortController();
     if (workerHealth.status === 'unhealthy') {
       logAttempt('Yahoo Finance', 'SKIP', 0, null);
-    } else {
-      const t0 = Date.now();
-      try {
-        const entries = await fetchYahooTotalReturn(yahooController.signal);
-        const filtered = entries ? filterEntries(entries) : [];
-        if (filtered.length < 2) {
-          logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
-        } else if (needsDeepHistory && filtered[0].date.getTime() >= pre2000) {
-          logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered);
-          console.warn(`Yahoo returned shallow data for ${ticker} (starts ${filtered[0].date.toISOString().split('T')[0]}) — falling through`);
-        } else {
-          logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
-          filtered.__source = 'Yahoo Finance';
-          return filtered;
-        }
-      } catch(e) {
-        if (!yahooController.signal.aborted) logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
-      }
+      return null;
     }
-  }
-
-  // 2. Tiingo — deep history (1970s+), stable API, properly adjusted prices.
-  // Better than Twelve Data and AV for history depth and reliability.
-  if (TIINGO_KEY && TIINGO_KEY !== 'YOUR_TIINGO_KEY_HERE') {
     const t0 = Date.now();
     try {
-      const tiingoInterval = interval === '1mo' ? 'monthly' : interval === '1d' ? 'daily' : 'weekly';
-      const tiingoUrl = `https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${fmt(s)}&endDate=${fmt(e)}&resampleFreq=${tiingoInterval}&token=${TIINGO_KEY}`;
-      const resp = await fetch(tiingoUrl, { signal: AbortSignal.timeout(12000) });
-      if (resp.ok) {
+      const entries = await fetchYahooTotalReturn(yahooController.signal);
+      const filtered = entries ? filterEntries(entries) : [];
+      if (filtered.length < 2) {
+        logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
+        return null;
+      }
+      if (needsDeepHistory && filtered[0].date.getTime() >= pre2000) {
+        logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered);
+        console.warn(`Yahoo returned shallow data for ${ticker} (starts ${filtered[0].date.toISOString().split('T')[0]}) — falling through`);
+        return null;
+      }
+      logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
+      filtered.__source = 'Yahoo Finance';
+      return filtered;
+    } catch(e) {
+      if (!yahooController.signal.aborted) logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
+      return null;
+    }
+  };
+
+  // Tiingo — deep history (1970s+), properly adjusted prices, but lately flaky.
+  // Tiingo serves quota messages as PLAIN TEXT with HTTP 200, which used to blow
+  // up .json() and surface as a meaningless FAIL. We now read the body as text,
+  // detect the quota wall, and report it honestly. On a network/CORS error we
+  // retry once through the Worker proxy (it adds the CORS headers Tiingo omits).
+  const tryTiingo = async () => {
+    if (!TIINGO_KEY || TIINGO_KEY === 'YOUR_TIINGO_KEY_HERE') return null;
+    const tiingoInterval = interval === '1mo' ? 'monthly' : interval === '1d' ? 'daily' : 'weekly';
+    const tiingoUrl = `https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${fmt(s)}&endDate=${fmt(e)}&resampleFreq=${tiingoInterval}&token=${TIINGO_KEY}`;
+    const attempt = async (url) => {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      const text = await resp.text();
+      try { return { result: JSON.parse(text) }; }
+      catch(_) {
+        // Non-JSON body — almost always a quota notice served as HTTP 200.
+        const lc = text.toLowerCase();
+        if (lc.includes('run over') || lc.includes('limit') || lc.includes('upgrade'))
+          return { quota: true, note: 'quota wall (free: ~50/hr, 500/mo)' };
+        return { bad: true, note: `non-JSON response (HTTP ${resp.status})` };
+      }
+    };
+    const t0 = Date.now();
+    try {
+      let r;
+      try { r = await attempt(tiingoUrl); }
+      catch(netErr) { r = await attempt(WORKER + encodeURIComponent(tiingoUrl)); } // CORS/network retry
+      if (r.quota) { logAttempt('Tiingo', 'THROTTLE', Date.now()-t0, null, r.note); return null; }
+      if (r.bad)   { logAttempt('Tiingo', 'FAIL', Date.now()-t0, null, r.note); return null; }
+      const result = r.result;
+      if (Array.isArray(result) && result.length >= 2) {
+        const entries = result.map(v => ({
+          date: new Date(v.date),
+          price: parseFloat(v.adjClose ?? v.close)
+        })).filter(d => !isNaN(d.price) && d.price > 0).sort((a, b) => a.date - b.date);
+        const filtered = filterEntries(entries);
+        if (filtered.length >= 2) {
+          logAttempt('Tiingo', 'SUCCESS', Date.now()-t0, filtered);
+          filtered.__source = 'Tiingo';
+          return filtered;
+        }
+      }
+      logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
+      return null;
+    } catch(e) {
+      logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
+      if (e.message && e.message.includes('not found')) throw e;
+      return null;
+    }
+  };
+
+  // Financial Modeling Prep (FMP) — replacement for the Stooq slot. Free tier is
+  // 250 req/day (10× Alpha Vantage) with 30+ years of adjusted EOD history for
+  // major US tickers. Get a free key at financialmodelingprep.com and paste it
+  // into FMP_KEY below. Parser tolerates both the v3 ({symbol, historical:[...]})
+  // and the newer "stable" (bare array) response shapes.
+  const tryFMP = async () => {
+    if (!FMP_KEY || FMP_KEY === 'YOUR_FMP_KEY_HERE') return null;
+    const base = 'https://financialmodelingprep.com/stable/historical-price-eod';
+    // Prefer dividend-adjusted (adjClose normalized for BOTH splits and dividends
+    // = a true total-return series, like Yahoo's adjclose). If the free tier gates
+    // it, fall back to /full (split-adjusted close only — no dividend reinvestment,
+    // so slightly understates total return, but still useful redundancy).
+    const endpoints = [
+      { path: 'dividend-adjusted', label: 'div-adj' },
+      { path: 'full',              label: 'split-adj only' },
+    ];
+    const t0 = Date.now();
+    let lastNote = null;
+    for (const ep of endpoints) {
+      try {
+        const url = `${base}/${ep.path}?symbol=${ticker}&from=${fmt(s)}&to=${fmt(e)}&apikey=${FMP_KEY}`;
+        const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+        if (resp.status === 401 || resp.status === 402 || resp.status === 403) { lastNote = `auth/plan HTTP ${resp.status} (${ep.path})`; continue; }
+        if (!resp.ok) { lastNote = `HTTP ${resp.status} (${ep.path})`; continue; }
         const result = await resp.json();
-        if (Array.isArray(result) && result.length >= 2) {
-          const entries = result.map(v => ({
+        if (result && (result['Error Message'] || result['error'])) {
+          const msg = String(result['Error Message'] || result['error']);
+          if (/not found|not a valid|invalid symbol/i.test(msg)) throw new Error(`Ticker "${ticker}" not found.`);
+          lastNote = `${ep.path}: ${msg.slice(0,28)}`; continue;
+        }
+        const rows = Array.isArray(result) ? result
+                   : Array.isArray(result.historical) ? result.historical : null;
+        if (rows && rows.length >= 2) {
+          const entries = rows.map(v => ({
             date: new Date(v.date),
-            price: parseFloat(v.adjClose ?? v.close)
+            price: parseFloat(v.adjClose ?? v.adjustedClose ?? v.close ?? v.price)
           })).filter(d => !isNaN(d.price) && d.price > 0).sort((a, b) => a.date - b.date);
           const filtered = filterEntries(entries);
           if (filtered.length >= 2) {
-            logAttempt('Tiingo', 'SUCCESS', Date.now()-t0, filtered);
-            filtered.__source = 'Tiingo';
+            logAttempt('FMP', 'SUCCESS', Date.now()-t0, filtered, ep.label);
+            filtered.__source = `FMP (${ep.label})`;
             return filtered;
           }
         }
-        logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
-      } else {
-        logAttempt('Tiingo', 'FAIL', Date.now()-t0, null);
+        lastNote = `${ep.path}: no usable rows`;
+      } catch(e) {
+        if (e.message && e.message.includes('not found')) throw e;
+        lastNote = `${ep.path}: ${(e.message||'error').slice(0,22)}`;
       }
-    } catch(e) { logAttempt('Tiingo', 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; }
-  }
-
-  // 3. Alpha Vantage keys — rotate with daily usage tracking so exhausted keys are skipped.
-  // AV free tier: 25 req/day per key. All keys reset at midnight UTC simultaneously,
-  // so we track usage per key per UTC-day and skip keys that have hit the limit.
-  const AV_DAILY_LIMIT = 25;
-  const avTodayUtc = new Date().toISOString().split('T')[0];
-  const avUsageKey = `${CACHE_PREFIX}av_usage_${avTodayUtc}`;
-  let avUsage = {};
-  try { avUsage = JSON.parse(localStorage.getItem(avUsageKey) || '{}'); } catch(e) {}
-  const bumpAvUsage = (key) => {
-    avUsage[key] = (avUsage[key] || 0) + 1;
-    try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
-  };
-  // Purge usage records older than today
-  try {
-    Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX + 'av_usage_') && !k.endsWith(avTodayUtc))
-      .forEach(k => localStorage.removeItem(k));
-  } catch(e) {}
-
-  let avKeyIndex = 0;
-  for (const key of AV_KEYS) {
-    avKeyIndex++;
-    if ((avUsage[key] || 0) >= AV_DAILY_LIMIT) {
-      logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', 0, null);
-      console.warn(`AV key ${key.slice(0,6)}… exhausted for today (${avUsage[key]} calls) — skipping`);
-      continue;
     }
-    const t0 = Date.now();
+    logAttempt('FMP', 'FAIL', Date.now()-t0, null, lastNote);
+    return null;
+  };
+
+  // Alpha Vantage — 8 rotating keys, 25 req/day each. CIRCUIT BREAKER: if two
+  // keys in a row come back throttled / invalid / empty (no real data), the rest
+  // share the same fate (per-minute pressure from one IP, or all keys invalid),
+  // so we stop hammering them with 8s timeouts and SKIP the remainder. This caps
+  // AV's worst case at ~2 attempts instead of 8.
+  const tryAlphaVantage = async () => {
+    const AV_DAILY_LIMIT = 25;
+    const avTodayUtc = new Date().toISOString().split('T')[0];
+    const avUsageKey = `${CACHE_PREFIX}av_usage_${avTodayUtc}`;
+    let avUsage = {};
+    try { avUsage = JSON.parse(localStorage.getItem(avUsageKey) || '{}'); } catch(e) {}
+    const bumpAvUsage = (key) => {
+      avUsage[key] = (avUsage[key] || 0) + 1;
+      try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+    };
+    // Purge usage records older than today
     try {
-      const url = `https://www.alphavantage.co/query?function=${avFunction}&symbol=${ticker}${outputSize}&apikey=${key}`;
-      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
-      bumpAvUsage(key);
-      if (!resp.ok) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
-      const result = await resp.json();
-      if (result['Error Message']) throw new Error(`Ticker "${ticker}" not found.`);
-      const avNote = result['Note'] || result['Information'];
-      if (avNote) {
-        // AV free tier enforces TWO limits: 25/day AND 5/minute. The old code
-        // treated ANY notice as daily exhaustion and poisoned the key until UTC
-        // midnight — so a single burst that tripped the per-minute cap could
-        // permanently disable all 8 keys for the rest of the day. Now we read
-        // the message: only a genuine daily-cap notice retires the key. A
-        // per-minute throttle (or any other transient notice) just rotates to
-        // the next key, which is on its own independent per-minute budget, so
-        // the key stays usable for the rest of the day.
-        const noteLc = String(avNote).toLowerCase();
-        const mentionsPerMinute = noteLc.includes('per minute') || noteLc.includes('call frequency') || noteLc.includes('calls per');
-        const mentionsDaily = noteLc.includes('per day') || noteLc.includes('25 requests') || noteLc.includes('daily limit');
-        // Treat as a true daily cap only when it cites the daily limit and is NOT
-        // the combined frequency note (which mentions both per-minute and per-day).
-        if (mentionsDaily && !mentionsPerMinute) {
-          logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', Date.now()-t0, null);
-          console.warn(`AV key ${key.slice(0,6)}… daily limit reached — skipping until UTC midnight`);
-          avUsage[key] = AV_DAILY_LIMIT;
-          try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
-        } else {
-          logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'THROTTLE', Date.now()-t0, null);
-          console.warn(`AV key ${key.slice(0,6)}… transient/per-minute throttle — rotating to next key, NOT marking exhausted`);
-        }
+      Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX + 'av_usage_') && !k.endsWith(avTodayUtc))
+        .forEach(k => localStorage.removeItem(k));
+    } catch(e) {}
+
+    let avKeyIndex = 0;
+    let deadStreak = 0;             // consecutive throttle/invalid/empty responses
+    const DEAD_STREAK_LIMIT = 2;    // after this many in a row, skip the rest
+    for (const key of AV_KEYS) {
+      avKeyIndex++;
+      if (deadStreak >= DEAD_STREAK_LIMIT) {
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', 0, null);
         continue;
       }
-      if (!result[seriesKey]) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); continue; }
-      const entries = Object.entries(result[seriesKey])
-        .map(([ds, vals]) => ({ date: new Date(ds), price: parseFloat(vals['5. adjusted close'] || vals['4. close']) }))
-        .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
-      const filtered = filterEntries(entries);
-      if (filtered.length >= 2) {
-        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SUCCESS', Date.now()-t0, filtered);
-        filtered.__source = `Alpha Vantage (key ${avKeyIndex})`;
-        return filtered;
+      if ((avUsage[key] || 0) >= AV_DAILY_LIMIT) {
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', 0, null);
+        console.warn(`AV key ${key.slice(0,6)}… exhausted for today (${avUsage[key]} calls) — skipping`);
+        continue;
       }
-      logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null);
-    } catch(e) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; continue; }
-  }
+      const t0 = Date.now();
+      try {
+        const url = `https://www.alphavantage.co/query?function=${avFunction}&symbol=${ticker}${outputSize}&apikey=${key}`;
+        const resp = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        bumpAvUsage(key);
+        if (!resp.ok) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); deadStreak++; continue; }
+        const result = await resp.json();
+        if (result['Error Message']) throw new Error(`Ticker "${ticker}" not found.`);
+        const avNote = result['Note'] || result['Information'];
+        if (avNote) {
+          // Free tier enforces 25/day AND 5/minute. Three distinct messages:
+          //   • daily cap  → retire this key until UTC midnight
+          //   • per-minute → transient, rotate to the next key
+          //   • premium    → the ENDPOINT itself is gated for this account (AV
+          //     has flip-flopped on free daily-adjusted access). That's not a
+          //     key problem — every key returns it — so we log it clearly and
+          //     stop hammering keys for a request that can never succeed.
+          const noteLc = String(avNote).toLowerCase();
+          const mentionsPremium = noteLc.includes('premium') || noteLc.includes('is a premium endpoint') || noteLc.includes('subscribe');
+          const mentionsPerMinute = noteLc.includes('per minute') || noteLc.includes('call frequency') || noteLc.includes('calls per');
+          const mentionsDaily = noteLc.includes('per day') || noteLc.includes('25 requests') || noteLc.includes('daily limit');
+          if (mentionsPremium) {
+            logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'PREMIUM', Date.now()-t0, null, `${avFunction} is premium-gated on free tier`);
+            console.warn(`AV: ${avFunction} is premium for this account — abandoning AV for this request (use weekly/monthly, or another source for daily)`);
+            break; // endpoint-level gate: no other key will fare differently
+          }
+          if (mentionsDaily && !mentionsPerMinute) {
+            logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SKIP', Date.now()-t0, null);
+            console.warn(`AV key ${key.slice(0,6)}… daily limit reached — skipping until UTC midnight`);
+            avUsage[key] = AV_DAILY_LIMIT;
+            try { localStorage.setItem(avUsageKey, JSON.stringify(avUsage)); } catch(e) {}
+          } else {
+            logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'THROTTLE', Date.now()-t0, null);
+            console.warn(`AV key ${key.slice(0,6)}… transient/per-minute throttle — rotating to next key`);
+          }
+          deadStreak++;
+          continue;
+        }
+        if (!result[seriesKey]) { logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null); deadStreak++; continue; }
+        const entries = Object.entries(result[seriesKey])
+          .map(([ds, vals]) => ({ date: new Date(ds), price: parseFloat(vals['5. adjusted close'] || vals['4. close']) }))
+          .filter(d => !isNaN(d.price)).sort((a,b) => a.date - b.date);
+        const filtered = filterEntries(entries);
+        if (filtered.length >= 2) {
+          logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'SUCCESS', Date.now()-t0, filtered);
+          filtered.__source = `Alpha Vantage (key ${avKeyIndex})`;
+          return filtered;
+        }
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null);
+        deadStreak++;
+      } catch(e) {
+        logAttempt(`Alpha Vantage (key ${avKeyIndex})`, 'FAIL', Date.now()-t0, null);
+        if (e.message && e.message.includes('not found')) throw e;
+        deadStreak++;
+      }
+    }
+    return null;
+  };
 
-  // 4. Twelve Data — last resort, history limited to ~2006 for most tickers.
-  {
+  // Twelve Data — reliable, but history caps ~2006 for most tickers. Excellent
+  // for bounded recent ranges; a shallow last resort for deep requests.
+  const tryTwelveData = async () => {
     const t0 = Date.now();
     try {
       const tdInterval = interval === '1d' ? '1day' : interval === '1wk' ? '1week' : '1month';
@@ -1605,11 +1773,29 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
             return filtered;
           }
         }
-        logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
-      } else {
-        logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
       }
-    } catch(e) { logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null); if (e.message && e.message.includes('not found')) throw e; }
+      logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
+      return null;
+    } catch(e) {
+      logAttempt('Twelve Data', 'FAIL', Date.now()-t0, null);
+      if (e.message && e.message.includes('not found')) throw e;
+      return null;
+    }
+  };
+
+  // Drive the cascade. A "not found" thrown by any source propagates out (the
+  // ticker genuinely doesn't exist — stop trying).
+  //
+  // Order: Yahoo → Tiingo → Twelve Data → FMP, then Alpha Vantage for non-daily
+  // only (its daily-adjusted endpoint is premium-gated; weekly/monthly are free).
+  // NOTE: Twelve Data returns UNADJUSTED close (price return, no dividends), so if
+  // it serves the data, total-return figures will slightly understate vs. the
+  // dividend-adjusted sources (Yahoo / Tiingo / FMP).
+  const avUsable = interval !== '1d';
+  const order = [tryYahoo, tryTiingo, tryTwelveData, tryFMP, ...(avUsable ? [tryAlphaVantage] : [])];
+  for (const src of order) {
+    const res = await src();
+    if (res && res.length >= 2) return res;
   }
 
   throw new Error(`Could not fetch data for "${ticker}". Please try again.`);

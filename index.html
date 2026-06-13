@@ -318,7 +318,7 @@
   <div class="r2-note" id="r2note">
     <strong style="color:var(--text)">What is R&sup2;?</strong> &mdash; Measures how closely growth followed a smooth exponential trend. 1.0000 = perfectly consistent. 0.5000 = highly volatile. The dashed line shows the fitted trend.<br><br>
     <strong style="color:var(--purple)">BEST TREND</strong> &mdash; Scans full history (monthly) to find the highest R&sup2; window, then re-fetches in higher resolution for the chart.<br><br>
-    <strong style="color:var(--muted)">Data sources:</strong> Yahoo Finance &rarr; Tiingo &rarr; Twelve Data &rarr; FMP. Twelve Data is unadjusted (price return); the others are dividend-adjusted. Alpha Vantage is used only for weekly/monthly (its daily-adjusted endpoint is premium-gated).
+    <strong style="color:var(--muted)">Data sources:</strong> Yahoo Finance &rarr; Tiingo &rarr; FMP &rarr; Twelve Data. Twelve Data is unadjusted (price return) so it sits last; the others are dividend-adjusted. Alpha Vantage is used only for weekly/monthly (its daily-adjusted endpoint is premium-gated).
   </div>
   <div class="stats-with-ticker" id="statsRow">
     <div class="stats-ticker-label" id="statsTickerBig1">—</div>
@@ -342,11 +342,12 @@
   </div>
   <div class="stats-with-ticker" id="statsRowRatio" style="display:none;">
     <div class="stats-ticker-label" style="font-size:32px;color:#0a0a0f;">RATIO</div>
-    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr 1fr 1fr;">
-      <div class="stat-card"><div class="stat-label">Min Relative Value</div><div class="stat-value" id="statMinRatio" style="color:var(--red)">&#8212;</div><div class="stat-sub" id="statMinRatioDate">Date of lowest ratio</div></div>
+    <div class="stats-inner" id="statsInnerRatio" style="grid-template-columns:1fr 1fr 1fr 1fr 1fr;">
+      <div class="stat-card"><div class="stat-label">Min Relative Value</div><div class="stat-value" id="statMinRatio" style="color:var(--red)">&#8212;</div><div class="stat-sub" id="statMinRatioBreak" style="display:none;"></div><div class="stat-sub" id="statMinRatioDate">Date of lowest ratio</div></div>
       <div class="stat-card"><div class="stat-label">Current Relative Value</div><div class="stat-value" id="statCurRatio">&#8212;</div><div class="stat-sub">vs historical low</div></div>
       <div class="stat-card green"><div class="stat-label">Current vs Min</div><div class="stat-value" id="statCurVsMin" style="color:var(--green);font-weight:bold">&#8212;</div><div class="stat-sub">current / min ratio</div></div>
       <div class="stat-card blue"><div class="stat-label">Days at CAGR to Match</div><div class="stat-value" id="statDaysToMatch">&#8212;</div><div class="stat-sub" id="statDaysToMatchSub">days at ticker CAGR</div></div>
+      <div class="stat-card"><div class="stat-label">Ratio</div><div class="stat-value" id="statDaysRatio">&#8212;</div><div class="stat-sub" id="statDaysRatioSub">days to match / trend days</div></div>
     </div>
   </div>
 </main>
@@ -1786,13 +1787,13 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   // Drive the cascade. A "not found" thrown by any source propagates out (the
   // ticker genuinely doesn't exist — stop trying).
   //
-  // Order: Yahoo → Tiingo → Twelve Data → FMP, then Alpha Vantage for non-daily
+  // Order: Yahoo → Tiingo → FMP → Twelve Data, then Alpha Vantage for non-daily
   // only (its daily-adjusted endpoint is premium-gated; weekly/monthly are free).
-  // NOTE: Twelve Data returns UNADJUSTED close (price return, no dividends), so if
-  // it serves the data, total-return figures will slightly understate vs. the
-  // dividend-adjusted sources (Yahoo / Tiingo / FMP).
+  // NOTE: Twelve Data returns UNADJUSTED close (price return, no dividends), so it
+  // sits LAST as the price-return fallback — the dividend-adjusted sources (Yahoo /
+  // Tiingo / FMP) are all tried first so total return isn't understated.
   const avUsable = interval !== '1d';
-  const order = [tryYahoo, tryTiingo, tryTwelveData, tryFMP, ...(avUsable ? [tryAlphaVantage] : [])];
+  const order = [tryYahoo, tryTiingo, tryFMP, tryTwelveData, ...(avUsable ? [tryAlphaVantage] : [])];
   for (const src of order) {
     const res = await src();
     if (res && res.length >= 2) return res;
@@ -2134,14 +2135,58 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
     r2.norm.forEach((d, i) => norm2Map.set(d.date.toISOString().split('T')[0], { value: d.value, trend: r2.trend[i] }));
 
     let minRatio = Infinity, minRatioDate = null, curRatio = null;
+    // Earliest date in the SECOND HALF of the chart where the ratio sets a new
+    // all-time low — i.e. the first point that breaks below everything before it.
+    // On a STATUS ending there, Current would equal Min (Current vs Min = 0%).
+    const firstDate = r1.norm[0].date.getTime();
+    const lastDate = r1.norm[r1.norm.length - 1].date.getTime();
+    const midTime = firstDate + (lastDate - firstDate) / 2;
+    let runMin = Infinity, breakDate = null;
     r1.norm.forEach((d, i) => {
       const key = d.date.toISOString().split('T')[0];
       const v2 = norm2Map.get(key);
       if (!v2) return;
       const ratio = (d.value * v2.trend) / (v2.value * r1.trend[i]);
       if (ratio < minRatio) { minRatio = ratio; minRatioDate = d.date; }
+      if (ratio <= runMin) {
+        runMin = ratio;
+        if (breakDate === null && d.date.getTime() >= midTime) breakDate = d.date;
+      }
       curRatio = ratio; // last valid point = current
     });
+
+    // The 1st MRV above depends on the end date, because the trend is refit over
+    // whatever window is shown. The "true" 1st MRV is the fixed point: the date
+    // that is its own 1st MRV. We find it by re-running the analysis ending on
+    // each result until the date stops changing (same as running STATUS by hand
+    // on each successive 1st MRV date).
+    const firstMRVForEnd = (endDate) => {
+      const et = endDate.getTime();
+      const d1 = data1.filter(d => d.date.getTime() <= et);
+      const d2 = data2.filter(d => d.date.getTime() <= et);
+      if (d1.length < 2 || d2.length < 2) return null;
+      const c1 = calc(d1), c2 = calc(d2);
+      const m2 = new Map();
+      c2.norm.forEach((d, i) => m2.set(d.date.toISOString().split('T')[0], { value: d.value, trend: c2.trend[i] }));
+      const f = c1.norm[0].date.getTime();
+      const l = c1.norm[c1.norm.length - 1].date.getTime();
+      const mid = f + (l - f) / 2;
+      let rm = Infinity, br = null;
+      c1.norm.forEach((d, i) => {
+        const v2 = m2.get(d.date.toISOString().split('T')[0]);
+        if (!v2) return;
+        const ratio = (d.value * v2.trend) / (v2.value * c1.trend[i]);
+        if (ratio <= rm) { rm = ratio; if (br === null && d.date.getTime() >= mid) br = d.date; }
+      });
+      return br;
+    };
+    let trueMRV = breakDate;
+    let mrvGuard = 0;
+    while (trueMRV && mrvGuard++ < 100) {
+      const next = firstMRVForEnd(trueMRV);
+      if (!next || next.getTime() === trueMRV.getTime()) break;
+      trueMRV = next;
+    }
 
     if (minRatioDate) {
       const el = document.getElementById('statMinRatio');
@@ -2149,12 +2194,21 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
       el.style.color = 'var(--red)';
       document.getElementById('statMinRatioDate').textContent =
         minRatioDate.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+      const breakEl = document.getElementById('statMinRatioBreak');
+      if (trueMRV) {
+        breakEl.style.display = '';
+        breakEl.innerHTML = '1st MRV:<br>' + trueMRV.toLocaleDateString('en-US', {year:'numeric', month:'short', day:'numeric'});
+      } else {
+        breakEl.style.display = 'none';
+      }
       const curEl = document.getElementById('statCurRatio');
       curEl.textContent = curRatio ? curRatio.toFixed(4) : '—';
       curEl.style.color = curRatio && curRatio <= minRatio * 1.1 ? 'var(--red)' : 'var(--green)';
       const curVsMinEl = document.getElementById('statCurVsMin');
       const daysEl = document.getElementById('statDaysToMatch');
       const daysSubEl = document.getElementById('statDaysToMatchSub');
+      const ratioValEl = document.getElementById('statDaysRatio');
+      const ratioSubEl = document.getElementById('statDaysRatioSub');
       if (curRatio && minRatio && minRatio > 0) {
         const pct = (curRatio / minRatio - 1) * 100;
         curVsMinEl.textContent = pct.toFixed(1) + '%';
@@ -2163,14 +2217,27 @@ function processAndRender(ticker, data1, ticker2, data2, endDate) {
           const days = Math.round(Math.log(1 + pct / 100) / Math.log(1 + cagr1) * 365);
           daysEl.textContent = days.toLocaleString();
           daysSubEl.textContent = `at ${(cagr1*100).toFixed(2)}% CAGR`;
+          // Ratio = days-to-match / total calendar days in the trend window
+          const trendDays = Math.round((r1.norm[r1.norm.length-1].date - r1.norm[0].date) / 86400000);
+          if (trendDays > 0) {
+            ratioValEl.textContent = (days / trendDays).toFixed(4);
+            ratioSubEl.textContent = `${days.toLocaleString()} / ${trendDays.toLocaleString()} days`;
+          } else {
+            ratioValEl.textContent = '—';
+            ratioSubEl.textContent = 'days to match / trend days';
+          }
         } else {
           daysEl.textContent = '—';
           daysSubEl.textContent = 'days at ticker CAGR';
+          ratioValEl.textContent = '—';
+          ratioSubEl.textContent = 'days to match / trend days';
         }
       } else {
         curVsMinEl.textContent = '—';
         daysEl.textContent = '—';
         daysSubEl.textContent = 'days at ticker CAGR';
+        ratioValEl.textContent = '—';
+        ratioSubEl.textContent = 'days to match / trend days';
       }
       ratioRow.style.display = 'flex';
       document.getElementById('statsInnerRatio').style.opacity = '1';
@@ -2338,36 +2405,18 @@ function renderChart(ticker, norm1, trend1, support1, resistance1, p98threshold,
      if (resistance2) datasets.push({ label: `${ticker2} Resistance`, data: toXYTrend(norm2, resistance2), borderColor: 'rgba(139,26,26,0.25)', borderWidth: 1.5, borderDash: [3,4], pointRadius: 0, fill: false, tension: 0, order: 4, showLine: true });
    }
 
-  // Custom positioner: keeps tooltip a fixed distance above the cursor point,
-  // flips to below when too close to the top, and nudges left when near the right edge.
+  // Pinned positioner: parks the tooltip in the top corner OPPOSITE the cursor's
+  // half of the chart — cursor on the left half -> top-right, cursor on the right
+  // half -> top-left — so it never covers the point (or the start of the chart)
+  // you're inspecting. Same rule for rising and falling trends.
   Chart.Tooltip.positioners.aboveCursor = function(elements, eventPosition) {
-    const chart = this.chart;
-    const OFFSET_Y = 80;   // px above the data point
-    const EDGE_PAD = 16;   // min px from chart edges before flipping/nudging
-    const tooltipWidth = this.width || 160;
-    const tooltipHeight = this.height || 80;
-
-    let x = eventPosition.x;
-    let y = eventPosition.y - OFFSET_Y;
-
-    // Flip below if too close to top
-    if (y < chart.chartArea.top + EDGE_PAD) {
-      y = eventPosition.y + OFFSET_Y;
-    }
-
-    // Nudge left if too close to right edge
-    const rightEdge = chart.chartArea.right;
-    if (x + tooltipWidth / 2 > rightEdge - EDGE_PAD) {
-      x = rightEdge - tooltipWidth / 2 - EDGE_PAD;
-    }
-
-    // Nudge right if too close to left edge
-    const leftEdge = chart.chartArea.left;
-    if (x - tooltipWidth / 2 < leftEdge + EDGE_PAD) {
-      x = leftEdge + tooltipWidth / 2 + EDGE_PAD;
-    }
-
-    return { x, y };
+    const area = this.chart.chartArea;
+    const PAD = 12;
+    const mid = (area.left + area.right) / 2;
+    const cursorX = eventPosition ? eventPosition.x : mid;
+    return cursorX < mid
+      ? { x: area.right - PAD, y: area.top + PAD }
+      : { x: area.left + PAD,  y: area.top + PAD };
   };
 
   // Store references for zoom click handler
@@ -2399,6 +2448,7 @@ function renderChart(ticker, norm1, trend1, support1, resistance1, p98threshold,
           titleFont: { family: 'DM Mono', size: 9 }, bodyFont: { family: 'DM Mono', size: 10 }, padding: 7,
           caretSize: 0,
           position: 'aboveCursor',
+          yAlign: 'top',
           callbacks: {
             label: ctx => { if (ctx.dataset.label === '_topBorder') return null; const lbl = ctx.dataset.label.endsWith(' Trend') ? 'Trend' : ctx.dataset.label; return `  ${lbl}: ${ctx.parsed.y.toFixed(2)}`; },
             title: items => items[0]?.raw?.x ? new Date(items[0].raw.x).toLocaleDateString('en-US', {year:'numeric',month:'short',day:'numeric'}) : ''

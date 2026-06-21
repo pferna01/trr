@@ -458,15 +458,32 @@ async function checkApiHealth() {
     const s = performance.now();
     try {
       const url = `https://query1.finance.yahoo.com/v8/finance/chart/${TEST}?period1=1700000000&period2=1700604800&interval=1d`;
-      const r = await fetch(WORKER + encodeURIComponent(url), { signal: AbortSignal.timeout(10000) });
+      const r = await proxyFetch(url, { timeout: 10000 });
       const ms = since(s);
-      if (!r.ok) return { name:'Yahoo Finance (Worker)', status:'FAIL', ms, note:`HTTP ${r.status}` };
+      if (!r.ok) return { name:'Yahoo Finance (proxy pool)', status:'FAIL', ms, note:`HTTP ${r.status}` };
       const j = await r.json();
-      if (!j?.chart?.result?.[0]) return { name:'Yahoo Finance (Worker)', status:'FAIL', ms, note:'empty result' };
+      if (!j?.chart?.result?.[0]) return { name:'Yahoo Finance (proxy pool)', status:'FAIL', ms, note:'empty result' };
       setWorkerHealthy(); // a clean probe clears any stale "proxy down" banner
-      return { name:'Yahoo Finance (Worker)', status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:'proxy + Yahoo reachable' };
+      return { name:'Yahoo Finance (proxy pool)', status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:`served by ${lastProxyName || 'proxy'}` };
     } catch(e) {
-      return { name:'Yahoo Finance (Worker)', status:'FAIL', ms:since(s), note: e.name==='TimeoutError'?'timeout (10s)':(e.message||'').slice(0,40) };
+      return { name:'Yahoo Finance (proxy pool)', status:'FAIL', ms:since(s), note: e.name==='TimeoutError'?'all proxies timed out':(e.message||'all proxies failed').slice(0,40) };
+    }
+  };
+
+  // Probe each configured proxy individually so you can see which backups are
+  // live. Only the primary's row drives the overall light; backups are FYI.
+  const probeOneProxy = (p) => async () => {
+    const s = performance.now();
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${TEST}?period1=1700000000&period2=1700604800&interval=1d`;
+    try {
+      const r = await fetch(p.base + encodeURIComponent(url), { signal: AbortSignal.timeout(8000) });
+      const ms = since(s);
+      if (!r.ok) return { name:`↳ ${p.name}`, status:'FAIL', ms, note:`HTTP ${r.status}`, _proxy:true };
+      const j = await r.json().catch(() => null);
+      if (!j?.chart?.result?.[0]) return { name:`↳ ${p.name}`, status:'FAIL', ms, note:'empty result', _proxy:true };
+      return { name:`↳ ${p.name}`, status: ms > SLOW_MS ? 'SLOW' : 'OK', ms, note:'reachable', _proxy:true };
+    } catch(e) {
+      return { name:`↳ ${p.name}`, status:'FAIL', ms:since(s), note: e.name==='TimeoutError'?'timeout (8s)':(e.message||'').slice(0,40), _proxy:true };
     }
   };
 
@@ -572,7 +589,13 @@ async function checkApiHealth() {
     return { name:'FMP', status:'FAIL', ms:since(s), note:'both endpoints gated on this plan (HTTP 403)' };
   };
 
-  const results = await Promise.all([probeYahoo(), probeTiingo(), probeTD(), probeFMP(), probeAV()]);
+  const proxyProbes = configuredProxies().map(p => probeOneProxy(p)());
+  const [coreResults, proxyResults] = await Promise.all([
+    Promise.all([probeYahoo(), probeTiingo(), probeTD(), probeFMP(), probeAV()]),
+    Promise.all(proxyProbes),
+  ]);
+  // Insert the per-proxy rows right after the Yahoo (pool) summary row.
+  const results = [coreResults[0], ...proxyResults, ...coreResults.slice(1)];
 
   const badgeFor = st => st==='OK'?'success':st==='SLOW'?'shallow':st==='SKIP'?'skip':'fail';
   const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -583,12 +606,16 @@ async function checkApiHealth() {
     <td class="api-health-note">${esc(r.note||'')}</td>
   </tr>`).join('');
 
-  // Overall light: Yahoo (primary) down = red; any other fail/slow = amber; all good = green.
-  const yahoo = results[0];
+  // Overall light is driven by the data sources (pool summary + APIs), not the
+  // per-proxy FYI rows — a dead backup while the pool is up is redundancy loss,
+  // not an outage, so it shouldn't flip the light red.
+  const core = results.filter(r => !r._proxy);
+  const yahoo = core[0];
   let cls = 'ok', word = 'All healthy';
   if (yahoo.status === 'FAIL') { cls = 'bad'; word = 'Primary down'; }
-  else if (results.some(r => r.status === 'FAIL')) { cls = 'warn'; word = 'Degraded'; }
-  else if (results.some(r => r.status === 'SLOW')) { cls = 'warn'; word = 'Slow'; }
+  else if (core.some(r => r.status === 'FAIL')) { cls = 'warn'; word = 'Degraded'; }
+  else if (results.some(r => r.status === 'FAIL')) { cls = 'warn'; word = 'Backup down'; }
+  else if (core.some(r => r.status === 'SLOW')) { cls = 'warn'; word = 'Slow'; }
   dot.className = `dot ${cls}`;
   label.textContent = word;
   btn.disabled = false;
@@ -1126,7 +1153,87 @@ const TIINGO_KEY = '2f7b372277185bb8e037f4677be153be56bbd4ac';
 // Get a free key at https://site.financialmodelingprep.com/developer/docs and
 // paste it here to activate the FMP fallback (replaces the removed Stooq slot).
 const FMP_KEY = 'hXuoi4tUf4Ay7jIsh24Uh7nYoEpN7Y5x';
-const WORKER = 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=';
+// ---------------------------------------------------------------------------
+// PROXY POOL — resilient front for Yahoo (and the Tiingo CORS retry).
+//
+// Every proxy speaks the SAME contract: GET <base>?url=<encoded target>, returns
+// the upstream body verbatim with permissive CORS. That uniformity lets the pool
+// treat them as hot-swappable. proxyFetch() walks the pool in order, failing over
+// proxy-by-proxy on transport/gateway failures (network error, timeout, 5xx/52x),
+// while passing real upstream answers (200, even a 404 bad-ticker) straight back.
+//
+// To activate a backup: deploy worker.js to a 2nd Cloudflare account (or
+// deno-proxy.ts to Deno Deploy), then paste its URL below in place of the
+// PASTE_… sentinel. Entries still holding a PASTE_ sentinel are auto-skipped, so
+// the pool works the moment a real URL is dropped in — no other code changes.
+// ---------------------------------------------------------------------------
+const PROXIES = [
+  { name: 'Cloudflare · primary', base: 'https://yahoo-proxy.5rktt4stnt.workers.dev/?url=' },
+  { name: 'Deno Deploy',          base: 'https://epic-ferret-3866.pferna01.deno.net/?url=' },
+  { name: 'Cloudflare · backup',  base: 'https://yahoo-proxy-backup.5rktt4stnt.workers.dev/?url=' },
+  { name: 'Val Town',             base: 'https://pferna01--a08e7a826d6911f1b4c61607ee4eb77e.web.val.run/?url=' },
+];
+
+// Per-proxy live health. Unhealthy proxies are skipped until a cooldown elapses,
+// then re-offered (at the back of the line) so a recovered proxy is picked up.
+const PROXY_COOLDOWN_MS = 60000;
+const _proxyState = new Map(); // base -> { healthy, fails, lastFail }
+let lastProxyName = null;      // name of the proxy that served the most recent success
+
+const proxyIsConfigured = p => p.base && !p.base.includes('PASTE_');
+function configuredProxies() { return PROXIES.filter(proxyIsConfigured); }
+function _pstate(base) {
+  let s = _proxyState.get(base);
+  if (!s) { s = { healthy: true, fails: 0, lastFail: 0 }; _proxyState.set(base, s); }
+  return s;
+}
+// Healthy proxies first (original priority order), then cooled-down unhealthy
+// ones as a last-ditch recovery attempt.
+function _orderedProxies() {
+  const now = Date.now();
+  const all = configuredProxies();
+  const healthy    = all.filter(p =>  _pstate(p.base).healthy);
+  const recovering = all.filter(p => !_pstate(p.base).healthy && now - _pstate(p.base).lastFail > PROXY_COOLDOWN_MS);
+  return [...healthy, ...recovering];
+}
+
+// A 5xx (incl. Cloudflare 520–526) means the proxy/gateway itself is down, so we
+// fail over. 2xx–4xx is a genuine upstream answer (e.g. 404 = bad ticker); another
+// proxy can't change that, so it's returned to the caller as-is.
+const _proxyGatewayDown = status => status >= 500;
+
+// Drop-in replacement for `fetch(WORKER + encodeURIComponent(target), opts)`.
+// Pass the RAW target URL; proxyFetch handles encoding + proxy selection + failover.
+// Options: { signal } caller abort (optional), { timeout } per-proxy timeout ms.
+async function proxyFetch(targetUrl, { signal, timeout = 12000, ...fetchOpts } = {}) {
+  const candidates = _orderedProxies();
+  if (candidates.length === 0) throw new Error('no proxies configured');
+  let lastErr;
+  for (const p of candidates) {
+    const st = _pstate(p.base);
+    const tSig = AbortSignal.timeout(timeout);
+    const sig = signal ? AbortSignal.any([signal, tSig]) : tSig;
+    try {
+      const resp = await fetch(p.base + encodeURIComponent(targetUrl), { ...fetchOpts, signal: sig });
+      if (_proxyGatewayDown(resp.status)) throw new Error(`gateway HTTP ${resp.status}`);
+      st.healthy = true; st.fails = 0;            // transport is fine (upstream may still 404)
+      lastProxyName = p.name;
+      return resp;
+    } catch (e) {
+      // If the CALLER's own signal aborted (not our per-proxy timeout), respect it
+      // and stop — don't waste the remaining proxies on an abandoned request.
+      if (signal && signal.aborted) throw e;
+      lastErr = e;
+      st.fails++; st.healthy = false; st.lastFail = Date.now();
+      // fall through to the next proxy
+    }
+  }
+  throw lastErr || new Error('all proxies failed');
+}
+
+// Back-compat alias: a few legacy spots may still reference WORKER as a base
+// string. Always points at the first configured proxy.
+const WORKER = (configuredProxies()[0]?.base) || PROXIES[0].base;
 
 // ---------------------------------------------------------------------------
 // Adaptive Cloudflare Worker health tracking.
@@ -1159,7 +1266,7 @@ function showWorkerBanner() {
   const banner = document.createElement('div');
   banner.id = 'workerWarning';
   banner.style.cssText = 'background:rgba(249,115,22,0.1);border-bottom:1px solid rgba(249,115,22,0.3);padding:10px 48px;font-family:DM Mono,monospace;font-size:11px;color:#f97316;letter-spacing:1px;';
-  banner.textContent = '⚠  Cloudflare proxy is unavailable — Yahoo is offline. Falling back to Tiingo / Alpha Vantage / Twelve Data. Results may be slower; these sources may not be dividend-adjusted.';
+  banner.textContent = '⚠  All proxies are unavailable — Yahoo is offline. Falling back to Tiingo / Alpha Vantage / Twelve Data. Results may be slower; these sources may not be dividend-adjusted.';
   const header = document.querySelector('header');
   if (header) header.after(banner);
 }
@@ -1200,7 +1307,7 @@ function setWorkerUnhealthy() {
   workerHealth.status = 'unhealthy';
   try { sessionStorage.removeItem('pfp_worker_ok'); } catch(e) {}
   showWorkerBanner();
-  if (was !== 'unhealthy') console.warn('⚠ Cloudflare worker marked unhealthy — demoting Yahoo in the source race');
+  if (was !== 'unhealthy') console.warn('⚠ Proxy pool exhausted — demoting Yahoo in the source race');
 }
 
 // Called by the Yahoo fetch path with whether the Worker actually proxied a
@@ -1218,21 +1325,23 @@ function reportWorkerOutcome(ok) {
   }
 }
 
-// Lightweight probe used at startup and for recovery re-checks.
+// Lightweight probe used at startup and for recovery re-checks. Succeeds if ANY
+// proxy in the pool can reach Yahoo, so the layer is "healthy" while even one
+// backup is alive.
 async function probeWorkerHealth() {
   if (workerHealth.probing) return workerHealth.status === 'healthy';
   workerHealth.probing = true;
   workerHealth.lastProbe = Date.now();
   try {
     const testUrl = `https://query1.finance.yahoo.com/v8/finance/chart/SPY?period1=1700000000&period2=1700086400&interval=1d`;
-    const resp = await fetch(WORKER + encodeURIComponent(testUrl), { signal: AbortSignal.timeout(8000) });
-    if (!resp.ok) throw new Error(`worker HTTP ${resp.status}`);
+    const resp = await proxyFetch(testUrl, { timeout: 8000 });
+    if (!resp.ok) throw new Error(`proxy HTTP ${resp.status}`);
     const json = await resp.json();
-    if (!json?.chart?.result?.[0]) throw new Error('worker returned empty result');
+    if (!json?.chart?.result?.[0]) throw new Error('proxy returned empty result');
     setWorkerHealthy();
     return true;
   } catch(e) {
-    console.warn('⚠ Cloudflare worker probe failed:', e.message);
+    console.warn('⚠ All proxies failed health probe:', e.message);
     setWorkerUnhealthy();
     return false;
   } finally {
@@ -1312,7 +1421,6 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
   // Yahoo adjclose already accounts for splits. We fetch raw close + dividends
   // separately so we can compute true total return with dividend reinvestment.
   const yahooBase = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}`;
-  const worker = WORKER;
 
   // True total return with dividend reinvestment
   // Fetches full history in sequential batches of 4 concurrent chunks.
@@ -1322,6 +1430,17 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     // Tracks whether the Worker proxied at least one real Yahoo response this
     // attempt. Used to update Worker health from transport outcome only.
     let workerResponded = false;
+    let servedByProxy = null; // name of the pool proxy that served the price data
+    let firstTradeMs = null;  // Yahoo's meta.firstTradeDate (ms) — the stock's true inception
+    // A deep-history result is COMPLETE if it reaches the requested floor (pre-2000)
+    // OR reaches the stock's own first trading day (within tolerance). The latter is
+    // what saves post-2000 IPOs (e.g. AXON, 2001) from being mis-flagged as truncated:
+    // their data legitimately starts after 2000. A genuine Yahoo truncation (a 1990s
+    // stock cut to ~2008) starts many years after firstTradeDate, so the ~400-day
+    // tolerance cleanly separates the two.
+    const INCEPTION_TOLERANCE_MS = 400 * 864e5;
+    const reachesInception = (firstPtMs) =>
+      firstTradeMs != null && firstPtMs <= firstTradeMs + INCEPTION_TOLERANCE_MS;
     const maxHistoryTs = -315619200; // Jan 1 1960
     const chunkStart = Math.min(maxHistoryTs, startTs);
     const range = endTs - chunkStart;
@@ -1337,8 +1456,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     // dividend reinvestment, so the adjclose series IS the total-return series.
     try {
       const fullUrl = `${yahooBase}?period1=${chunkStart}&period2=${endTs}&interval=${yahooInterval}&includeAdjustedClose=true`;
-      const sig = externalAbort ? AbortSignal.any([externalAbort, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
-      const resp = await fetch(worker + encodeURIComponent(fullUrl), { signal: sig });
+      const resp = await proxyFetch(fullUrl, { signal: externalAbort, timeout: 15000 });
       if (resp.ok) {
         const json = await resp.json();
         const r = json?.chart?.result?.[0];
@@ -1346,6 +1464,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
           workerResponded = true;
           const raw = r.indicators?.quote?.[0]?.close;
           const adj = r.indicators?.adjclose?.[0]?.adjclose;
+          if (r.meta?.firstTradeDate != null) firstTradeMs = r.meta.firstTradeDate * 1000;
           let fpts = r.timestamp.map((t, i) => {
             const rawVal = raw?.[i];
             const adjVal = (adj?.[i] != null && !isNaN(adj[i])) ? adj[i] : rawVal;
@@ -1356,13 +1475,17 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
           if (fpts.length >= 2) {
             const spanYears  = (fpts[fpts.length-1].ts - fpts[0].ts) / (365.25 * 864e5);
             const perYear    = yahooInterval === '1d' ? 200 : yahooInterval === '1wk' ? 40 : 10;
-            const deepEnough  = !(startTs < 0) || fpts[0].ts <= DEEP_HISTORY_CUTOFF;
+            const deepEnough  = !(startTs < 0) || fpts[0].ts <= DEEP_HISTORY_CUTOFF || reachesInception(fpts[0].ts);
             const denseEnough = fpts.length >= Math.max(2, spanYears * perYear);
             if (deepEnough && denseEnough) {
               reportWorkerOutcome(true);
               if (biWeekly) fpts = fpts.filter((_, i) => i % 2 === 0);
               console.log(`Yahoo fast path: ${fpts.length} pts, ${fpts[0].date.toISOString().split('T')[0]} → single request`);
-              return fpts.map(pt => ({ date: pt.date, price: pt.adj }));
+              servedByProxy = lastProxyName;
+              const out = fpts.map(pt => ({ date: pt.date, price: pt.adj }));
+              out.__proxy = servedByProxy;
+              out.__firstTrade = firstTradeMs;
+              return out;
             }
             console.warn(`Yahoo fast path rejected for ${ticker} (deep=${deepEnough}, dense=${denseEnough}, ${fpts.length} pts) — falling back to chunked fetch.`);
           }
@@ -1381,13 +1504,13 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       for (let attempt = 0; attempt <= MAX_CHUNK_RETRIES; attempt++) {
         try {
           const url = `${yahooBase}?period1=${p1}&period2=${p2}&interval=${chunkInterval}&includeAdjustedClose=true`;
-          const sig = externalAbort ? AbortSignal.any([externalAbort, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
-          const resp = await fetch(worker + encodeURIComponent(url), { signal: sig });
+          const resp = await proxyFetch(url, { signal: externalAbort, timeout: 15000 });
           if (!resp.ok) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
           const json = await resp.json();
           if (!json?.chart?.result?.[0]) { if (attempt < MAX_CHUNK_RETRIES) continue; return []; }
           workerResponded = true; // Worker successfully proxied a real Yahoo response
           const r = json.chart.result[0];
+          if (firstTradeMs == null && r.meta?.firstTradeDate != null) firstTradeMs = r.meta.firstTradeDate * 1000;
           const raw = r.indicators?.quote?.[0]?.close;
           const adj = r.indicators?.adjclose?.[0]?.adjclose;
           const ts = r.timestamp;
@@ -1413,7 +1536,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
 
     // Fetch dividends in parallel with the first batch
     const divHistUrl = `${yahooBase}?period1=${maxHistoryTs}&period2=${endTs}&interval=1d&events=div&includeAdjustedClose=true`;
-    const divPromise = fetch(worker + encodeURIComponent(divHistUrl), { signal: AbortSignal.timeout(15000) }).catch(() => null);
+    const divPromise = proxyFetch(divHistUrl, { timeout: 15000 }).catch(() => null);
 
     // Sequential batching: fire BATCH_SIZE chunks at a time, wait before next wave
     const chunkResults = [];
@@ -1422,6 +1545,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
       const results = await Promise.all(batch.map(([p1, p2, ci]) => fetchChunk(p1, p2, ci)));
       chunkResults.push(...results);
     }
+    servedByProxy = lastProxyName; // proxy that served the price chunks (capture before div await)
     const divResp = await divPromise;
 
     // Update live Worker health from transport outcome (not data depth).
@@ -1468,13 +1592,13 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     // Validate actual data depth after stitching.
     // Yahoo sometimes returns chunks that all begin around 2008 regardless of the
     // requested period1 — the chunks aren't empty, they just silently ignore the
-    // early date range. If the assembled data starts after 2000-01-01 and we
-    // asked for data going back to 1960, reject this result entirely so the caller
-    // falls through to a fallback source rather than caching bad data.
+    // early date range. Reject ONLY if the assembled data starts well after BOTH
+    // the pre-2000 floor AND the stock's own inception (firstTradeDate). A post-2000
+    // IPO that starts at its inception is complete, not truncated, and must be kept.
     // (DEEP_HISTORY_CUTOFF defined at the top of this function.)
     const assembledStart = pts[0].date.getTime();
-    if (startTs < 0 && assembledStart > DEEP_HISTORY_CUTOFF) {
-      console.warn(`Yahoo returned truncated history for ${ticker} — assembled start: ${pts[0].date.toISOString().split('T')[0]}, expected pre-2000. Rejecting.`);
+    if (startTs < 0 && assembledStart > DEEP_HISTORY_CUTOFF && !reachesInception(assembledStart)) {
+      console.warn(`Yahoo returned truncated history for ${ticker} — assembled start: ${pts[0].date.toISOString().split('T')[0]}, firstTrade: ${firstTradeMs ? new Date(firstTradeMs).toISOString().split('T')[0] : 'unknown'}. Rejecting.`);
       return null;
     }
 
@@ -1498,6 +1622,8 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
 
     // adjclose already includes dividend adjustments — use directly as total return
     const totalReturn = pts.map(pt => ({ date: pt.date, price: pt.adj }));
+    totalReturn.__proxy = servedByProxy;
+    totalReturn.__firstTrade = firstTradeMs;
     return totalReturn;
   };
 
@@ -1535,17 +1661,23 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     const t0 = Date.now();
     try {
       const entries = await fetchYahooTotalReturn(yahooController.signal);
+      const servedBy = entries && entries.__proxy;
+      const firstTrade = entries && entries.__firstTrade;
       const filtered = entries ? filterEntries(entries) : [];
       if (filtered.length < 2) {
         logAttempt('Yahoo Finance', 'FAIL', Date.now()-t0, null);
         return null;
       }
-      if (needsDeepHistory && filtered[0].date.getTime() >= pre2000) {
-        logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered);
+      // Only flag as SHALLOW if the data starts after 2000 AND doesn't reach the
+      // stock's own first trading day — i.e. genuinely truncated, not a post-2000
+      // IPO whose history legitimately begins after 2000.
+      const reachedInception = firstTrade != null && filtered[0].date.getTime() <= firstTrade + 400 * 864e5;
+      if (needsDeepHistory && filtered[0].date.getTime() >= pre2000 && !reachedInception) {
+        logAttempt('Yahoo Finance', 'SHALLOW', Date.now()-t0, filtered, servedBy ? `via ${servedBy}` : null);
         console.warn(`Yahoo returned shallow data for ${ticker} (starts ${filtered[0].date.toISOString().split('T')[0]}) — falling through`);
         return null;
       }
-      logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered);
+      logAttempt('Yahoo Finance', 'SUCCESS', Date.now()-t0, filtered, servedBy ? `via ${servedBy}` : null);
       filtered.__source = 'Yahoo Finance';
       return filtered;
     } catch(e) {
@@ -1563,8 +1695,10 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     if (!TIINGO_KEY || TIINGO_KEY === 'YOUR_TIINGO_KEY_HERE') return null;
     const tiingoInterval = interval === '1mo' ? 'monthly' : interval === '1d' ? 'daily' : 'weekly';
     const tiingoUrl = `https://api.tiingo.com/tiingo/daily/${ticker}/prices?startDate=${fmt(s)}&endDate=${fmt(e)}&resampleFreq=${tiingoInterval}&token=${TIINGO_KEY}`;
-    const attempt = async (url) => {
-      const resp = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    const attempt = async (url, useProxy = false) => {
+      const resp = useProxy
+        ? await proxyFetch(url, { timeout: 12000 })
+        : await fetch(url, { signal: AbortSignal.timeout(12000) });
       const text = await resp.text();
       try { return { result: JSON.parse(text) }; }
       catch(_) {
@@ -1579,7 +1713,7 @@ async function fetchRawData(ticker, startTs, endTs, interval) {
     try {
       let r;
       try { r = await attempt(tiingoUrl); }
-      catch(netErr) { r = await attempt(WORKER + encodeURIComponent(tiingoUrl)); } // CORS/network retry
+      catch(netErr) { r = await attempt(tiingoUrl, true); } // CORS/network retry via proxy pool
       if (r.quota) { logAttempt('Tiingo', 'THROTTLE', Date.now()-t0, null, r.note); return null; }
       if (r.bad)   { logAttempt('Tiingo', 'FAIL', Date.now()-t0, null, r.note); return null; }
       const result = r.result;
